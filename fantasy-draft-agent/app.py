@@ -219,43 +219,40 @@ def create_gradio_interface():
                     """)
                     
                     gr.Markdown("""
-                    <div style="background-color: #f5f5f5; padding: 20px; border-radius: 10px; font-family: monospace;">
+                    #### 1️⃣ INITIALIZATION
+                    User clicks "Start Mock Draft" → System creates 6 agents
                     
-                    <strong>1. INITIALIZATION</strong>
-                    <br>User clicks "Start Mock Draft" → System creates 6 agents
-                    <br>
-                    <br><strong>2. AGENT SETUP</strong>
-                    <br>• Team 1: Zero RB Strategy
-                    <br>• Team 2: Best Player Available  
-                    <br>• Team 3: Robust RB Strategy
-                    <br>• YOU: Position 4 (with Advisor)
-                    <br>• Team 5: Upside Hunter
-                    <br>• Team 6: Best Player Available
-                    <br>
-                    <br><strong>3. DRAFT FLOW (3 Rounds)</strong>
-                    <br>Round 1: Pick Order 1→2→3→YOU→5→6
-                    <br>Round 2: Pick Order 6→5→YOU→3→2→1 (Snake)
-                    <br>Round 3: Pick Order 1→2→3→YOU→5→6
-                    <br>
-                    <br><strong>4. EACH PICK TRIGGERS</strong>
-                    <br>• Agent makes selection based on strategy
-                    <br>• Other agents comment (A2A communication)
-                    <br>• Original agent may respond
-                    <br>• All agents update their memory
-                    <br>
-                    <br><strong>5. USER'S TURN</strong>
-                    <br>• Advisor analyzes draft state
-                    <br>• User sees available players
-                    <br>• User makes pick
-                    <br>• All agents react to user's choice
-                    <br>
-                    <br><strong>6. MEMORY & CONTEXT</strong>
-                    <br>• Each agent remembers all picks
-                    <br>• Agents reference earlier conversations
-                    <br>• Strategies adapt based on draft flow
-                    <br>• Visual memory indicators show retention
+                    #### 2️⃣ AGENT SETUP
+                    - **Team 1**: Zero RB Strategy
+                    - **Team 2**: Best Player Available  
+                    - **Team 3**: Robust RB Strategy
+                    - **YOU**: Position 4 (with Advisor)
+                    - **Team 5**: Upside Hunter
+                    - **Team 6**: Best Player Available
                     
-                    </div>""")
+                    #### 3️⃣ DRAFT FLOW (3 Rounds)
+                    - **Round 1**: Pick Order 1→2→3→YOU→5→6
+                    - **Round 2**: Pick Order 6→5→YOU→3→2→1 (Snake)
+                    - **Round 3**: Pick Order 1→2→3→YOU→5→6
+                    
+                    #### 4️⃣ EACH PICK TRIGGERS
+                    - Agent makes selection based on strategy
+                    - Other agents comment (A2A communication)
+                    - Original agent may respond
+                    - All agents update their memory
+                    
+                    #### 5️⃣ USER'S TURN
+                    - Advisor analyzes draft state
+                    - User sees available players
+                    - User makes pick
+                    - All agents react to user's choice
+                    
+                    #### 6️⃣ MEMORY & CONTEXT
+                    - Each agent remembers all picks
+                    - Agents reference earlier conversations
+                    - Strategies adapt based on draft flow
+                    - Visual memory indicators show retention
+                    """)
                     
                     gr.Markdown("""
                     ### 🎯 Key Features Demonstrated
