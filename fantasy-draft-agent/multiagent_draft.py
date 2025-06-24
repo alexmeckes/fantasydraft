@@ -39,15 +39,22 @@ class DraftAgent:
     def comment_on_pick(self, team: str, player: str, player_info: Dict) -> Optional[str]:
         """Generate commentary on another team's pick using LLM."""
         # Build context for the LLM
+        # Convert ADP to a more understandable format
+        adp_int = int(player_info['adp'])
+        if adp_int == 0:
+            adp_int = 1
+        adp_description = f"ranked #{adp_int} overall" if adp_int <= 10 else f"typically drafted around pick #{adp_int}"
+        
         context = f"""You are {self.team_name}, a fantasy football team manager following a {self.strategy}.
 Your picks so far: {', '.join(self.picks) if self.picks else 'None yet'}
 
-{team} just picked {player} ({player_info['pos']}, ADP: {player_info['adp']}, Tier: {player_info['tier']}).
+{team} just picked {player} ({player_info['pos']}, {adp_description}, Tier: {player_info['tier']}).
 
 Based on your strategy and the current draft situation, provide a short, natural comment on this pick. 
 Be competitive and show some personality - you can be critical, sarcastic, or dismissive if the pick doesn't align with your philosophy.
 Don't be overly nice. This is a competitive draft and you want to win. Show confidence in your strategy.
-Keep it under 2 sentences and make it feel like real draft room banter - trash talk is encouraged!"""
+Keep it under 2 sentences and make it feel like real draft room banter - trash talk is encouraged!
+IMPORTANT: Don't mention raw ADP numbers like "1.5" - use natural language like "top pick", "#1 overall", "first round talent", etc."""
 
         response = self.agent.run(context)
         return response.strip()
@@ -94,14 +101,24 @@ class ZeroRBAgent(DraftAgent):
                 player_info = best_wrs[0][1]
                 
                 # Generate dynamic reasoning using LLM
+                # Convert ADP to readable format
+                adp_int = int(player_info['adp'])
+                if adp_int <= 12:
+                    adp_desc = f"a top-{adp_int} player"
+                elif adp_int <= 24:
+                    adp_desc = "an early second-round talent"
+                else:
+                    adp_desc = f"ranked around #{adp_int}"
+                
                 context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 
-You're selecting {player} (WR, {player_info['team']}, ADP: {player_info['adp']}).
+You're selecting {player} (WR, {player_info['team']}, {adp_desc}).
 
 Explain your pick in 1-2 sentences, emphasizing why this fits your Zero RB strategy. 
 Be confident and maybe a bit cocky about avoiding RBs. Take subtle shots at teams loading up on injury-prone RBs.
-Show personality - you KNOW your strategy is superior."""
+Show personality - you KNOW your strategy is superior.
+Don't use raw numbers like "1.5" or "ADP 12" - use natural language."""
                 
                 reasoning = self.agent.run(context).strip()
                 return player, reasoning
@@ -116,14 +133,22 @@ Show personality - you KNOW your strategy is superior."""
             player_info = best_available[0][1]
             pos = player_info['pos']
             
+            # Convert ADP to readable format
+            adp_int = int(player_info['adp'])
+            if pos == 'RB':
+                adp_desc = "a value RB" if adp_int > 24 else "a solid back"
+            else:
+                adp_desc = f"ranked #{adp_int}" if adp_int > 30 else f"a round {(adp_int-1)//12 + 1} talent"
+            
             context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks)}
 
-You're selecting {player} ({pos}, {player_info['team']}, ADP: {player_info['adp']}).
+You're selecting {player} ({pos}, {player_info['team']}, {adp_desc}).
 
 Explain why you're taking this player now, given your Zero RB approach.
 If it's a RB, explain why NOW is the right time (while others reached early). 
-Be smug about getting value while others panicked. Keep it to 1-2 sentences with attitude."""
+Be smug about getting value while others panicked. Keep it to 1-2 sentences with attitude.
+Use terms like "value", "steal", "while others reached" - not raw numbers."""
             
             reasoning = self.agent.run(context).strip()
             return player, reasoning
@@ -152,15 +177,25 @@ class BPAAgent(DraftAgent):
             pos = player_info['pos']
             
             # Generate dynamic reasoning using LLM
+            # Convert ADP to readable format
+            adp_int = int(player_info['adp'])
+            if adp_int <= 12:
+                adp_desc = f"the #{adp_int} overall player"
+            elif adp_int <= 24:
+                adp_desc = "a late first/early second round value"
+            else:
+                adp_desc = f"ranked #{adp_int} overall"
+            
             context = f"""You are {self.team_name} following a Best Player Available strategy.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 Round: {len(self.picks) + 1}
 
-You're selecting {player} ({pos}, {player_info['team']}, ADP: {player_info['adp']}).
+You're selecting {player} ({pos}, {player_info['team']}, {adp_desc}).
 
-Explain why this is the best value pick available. Focus on their ranking/ADP value.
+Explain why this is the best value pick available. Focus on their value and ranking.
 Be condescending about other teams reaching for needs or following rigid strategies.
-You're the smart one taking the obvious value - let them know it. Keep it to 1-2 sentences."""
+You're the smart one taking the obvious value - let them know it. Keep it to 1-2 sentences.
+Don't use raw ADP numbers - use terms like "best available", "top-ranked", "obvious value", etc."""
             
             reasoning = self.agent.run(context).strip()
             return player, reasoning
@@ -190,14 +225,24 @@ class RobustRBAgent(DraftAgent):
                 player = best_rbs[0][0]
                 player_info = best_rbs[0][1]
                 
+                # Convert ADP to readable format
+                adp_int = int(player_info['adp'])
+                if adp_int <= 5:
+                    adp_desc = "an elite, top-5 back"
+                elif adp_int <= 12:
+                    adp_desc = f"a premier RB1"
+                else:
+                    adp_desc = "a solid running back"
+                
                 context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 
-You're selecting {player} (RB, {player_info['team']}, ADP: {player_info['adp']}).
+You're selecting {player} (RB, {player_info['team']}, {adp_desc}).
 
 Explain why this RB is crucial for your Robust RB strategy. Be aggressive about RBs winning championships.
 Mock teams that are going WR-heavy. You're building a REAL team with a strong foundation.
-Be old-school and dismissive of "fancy" WR strategies. Keep it to 1-2 sentences with authority."""
+Be old-school and dismissive of "fancy" WR strategies. Keep it to 1-2 sentences with authority.
+Use terms like "workhorse", "bell cow", "foundation" - not raw numbers."""
                 
                 reasoning = self.agent.run(context).strip()
                 return player, reasoning
@@ -211,13 +256,24 @@ Be old-school and dismissive of "fancy" WR strategies. Keep it to 1-2 sentences 
             player = best_available[0][0]
             player_info = best_available[0][1]
             
+            # Convert ADP to readable format
+            adp_int = int(player_info['adp'])
+            pos = player_info['pos']
+            if pos == 'WR':
+                adp_desc = "a quality receiver" if adp_int <= 24 else "a decent WR option"
+            elif pos == 'TE':
+                adp_desc = "a reliable tight end"
+            else:
+                adp_desc = f"ranked #{adp_int}"
+            
             context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks)}
 
-You're selecting {player} ({player_info['pos']}, {player_info['team']}, ADP: {player_info['adp']}).
+You're selecting {player} ({player_info['pos']}, {player_info['team']}, {adp_desc}).
 
 Explain how this pick fits with your RB-heavy build. If it's not a RB, grudgingly admit you need other positions too.
-But emphasize your RB foundation is what matters. Be dismissive of WR-first teams. Keep it to 1-2 sentences."""
+But emphasize your RB foundation is what matters. Be dismissive of WR-first teams. Keep it to 1-2 sentences.
+Focus on your "foundation" and "championship formula" - avoid raw rankings."""
             
             reasoning = self.agent.run(context).strip()
             return player, reasoning
@@ -244,15 +300,20 @@ class UpsideAgent(DraftAgent):
             player = best_available[2][0]  # Skip top 2, take 3rd
             player_info = best_available[2][1]
             
+            # Convert ADP to readable format
+            adp_int = int(player_info['adp'])
+            adp_desc = "a sleeper pick" if adp_int > 36 else "someone with untapped potential"
+            
             context = f"""You are {self.team_name}, an Upside Hunter who looks for breakout potential.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 Round: {len(self.picks) + 1}
 
-You're reaching slightly for {player} ({player_info['pos']}, {player_info['team']}, ADP: {player_info['adp']}).
+You're reaching slightly for {player} ({player_info['pos']}, {player_info['team']}, {adp_desc}).
 
 Explain why you see breakout/league-winning potential in this player. Be enthusiastic about their upside.
 Mock the "safe" picks others are making. You're here to WIN, not finish 4th! 
-Championships require RISK! Keep it to 1-2 sentences with swagger."""
+Championships require RISK! Keep it to 1-2 sentences with swagger.
+Talk about "upside", "ceiling", "league-winner" - not specific rankings."""
             
             reasoning = self.agent.run(context).strip()
             return player, reasoning
@@ -261,15 +322,25 @@ Championships require RISK! Keep it to 1-2 sentences with swagger."""
             player = best_available[0][0]
             player_info = best_available[0][1]
             
+            # Convert ADP to readable format
+            adp_int = int(player_info['adp'])
+            if adp_int <= 12:
+                adp_desc = "a high-ceiling star"
+            elif adp_int <= 36:
+                adp_desc = "someone with serious upside"
+            else:
+                adp_desc = "a potential breakout"
+            
             context = f"""You are {self.team_name}, an Upside Hunter who looks for league-winners.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 Round: {len(self.picks) + 1}
 
-You're selecting {player} ({player_info['pos']}, {player_info['team']}, ADP: {player_info['adp']}).
+You're selecting {player} ({player_info['pos']}, {player_info['team']}, {adp_desc}).
 
 Explain what upside or potential you see in this player. Focus on ceiling over floor.
 Be dismissive of "safe" boring picks. You're building a championship roster, not a participation trophy team!
-Keep it to 1-2 sentences with confidence."""
+Keep it to 1-2 sentences with confidence.
+Use exciting terms like "breakout", "league-winner", "explosive" - not rankings."""
             
             reasoning = self.agent.run(context).strip()
             return player, reasoning
@@ -322,10 +393,10 @@ User's current roster:
 - WRs: {', '.join(user_wrs) if user_wrs else 'None'}
 
 Top available players:
-- Best RB: {best_by_pos.get('RB', [None])[0]} (ADP: {best_by_pos.get('RB', [None, {'adp': 'N/A'}])[1]['adp']})
-- Best WR: {best_by_pos.get('WR', [None])[0]} (ADP: {best_by_pos.get('WR', [None, {'adp': 'N/A'}])[1]['adp']})
-- Best QB: {best_by_pos.get('QB', [None])[0]} (ADP: {best_by_pos.get('QB', [None, {'adp': 'N/A'}])[1]['adp']})
-- Best TE: {best_by_pos.get('TE', [None])[0]} (ADP: {best_by_pos.get('TE', [None, {'adp': 'N/A'}])[1]['adp']})
+- Best RB: {best_by_pos.get('RB', [None])[0]} {f"(ranked #{int(best_by_pos.get('RB', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('RB') else ""}
+- Best WR: {best_by_pos.get('WR', [None])[0]} {f"(ranked #{int(best_by_pos.get('WR', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('WR') else ""}
+- Best QB: {best_by_pos.get('QB', [None])[0]} {f"(ranked #{int(best_by_pos.get('QB', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('QB') else ""}
+- Best TE: {best_by_pos.get('TE', [None])[0]} {f"(ranked #{int(best_by_pos.get('TE', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('TE') else ""}
 
 Recent picks by other teams:
 {chr(10).join(other_picks_summary[-3:]) if other_picks_summary else 'None yet'}
@@ -339,7 +410,8 @@ Provide strategic advice for the user's pick. Consider:
 4. Position scarcity
 
 Format as: 🎯 **Round {round_num} Advice** followed by 2-3 bullet points with specific player recommendations and reasoning.
-Keep it concise but insightful."""
+Keep it concise but insightful.
+When discussing player rankings, use natural language like "top-5 RB", "first-round talent", "mid-round value" instead of raw numbers like "ADP 12.5"."""
         
         advice = self.agent.run(context).strip()
         return advice
