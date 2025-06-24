@@ -14,7 +14,10 @@ from data import TOP_PLAYERS
 from multiagent_draft import MultiAgentMockDraft
 from multiagent_scenarios import (
     run_interactive_mock_draft,
-    format_conversation_block
+    format_conversation_block,
+    format_agent_message,
+    format_memory_indicator,
+    create_mock_draft_visualization
 )
 
 # Load environment variables from .env file
@@ -87,9 +90,6 @@ class FantasyDraftApp:
         current_round = ((total_picks - 1) // 6) + 1  # 6 teams per round
         
         # Continue with the rest of the draft
-        import time
-        from multiagent_scenarios import format_agent_message, format_memory_indicator, create_mock_draft_visualization
-        
         draft_memories = []
         
         # Continue the draft
@@ -199,7 +199,7 @@ def create_gradio_interface():
                             gr.Markdown("""
                             <div style="background-color: #E3F2FD; border-left: 4px solid #1976D2; padding: 15px; border-radius: 8px;">
                             
-                            <h4 style="color: #1a237e !important; margin: 0 0 10px 0;">📘 Team 1 - Zero RB</h4>
+                            <h4 style="color: #1a237e !important; margin: 0 0 10px 0;">📘🤓 Team 1 - Zero RB</h4>
                             
                             <p style="color: #1976D2 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs get injured. I'll build around elite WRs."</p>
                             
@@ -215,7 +215,7 @@ def create_gradio_interface():
                             gr.Markdown("""
                             <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
                             
-                            <h4 style="color: #1b5e20 !important; margin: 0 0 10px 0;">📗 Team 2 - BPA</h4>
+                            <h4 style="color: #1b5e20 !important; margin: 0 0 10px 0;">📗🧑‍💼 Team 2 - BPA</h4>
                             
                             <p style="color: #2e7d32 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Value is value. I don't reach for needs."</p>
                             
@@ -231,7 +231,7 @@ def create_gradio_interface():
                             gr.Markdown("""
                             <div style="background-color: #FFF3E0; border-left: 4px solid #F57C00; padding: 15px; border-radius: 8px;">
                             
-                            <h4 style="color: #e65100 !important; margin: 0 0 10px 0;">📙 Team 3 - Robust RB</h4>
+                            <h4 style="color: #e65100 !important; margin: 0 0 10px 0;">📙🧔 Team 3 - Robust RB</h4>
                             
                             <p style="color: #ef6c00 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs win championships. Period."</p>
                             
@@ -252,7 +252,7 @@ def create_gradio_interface():
                             <p style="color: #3949ab !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">Your draft position with AI guidance</p>
                             
                             <ul style="color: #1a237e !important; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #1a237e !important;">📕 Strategic advisor</li>
+                            <li style="color: #1a237e !important;">📕🧙 Strategic advisor</li>
                             <li style="color: #1a237e !important;">Real-time guidance</li>
                             <li style="color: #1a237e !important;">Roster analysis</li>
                             </ul>
@@ -263,7 +263,7 @@ def create_gradio_interface():
                             gr.Markdown("""
                             <div style="background-color: #F5E6FF; border-left: 4px solid #7B1FA2; padding: 15px; border-radius: 8px;">
                             
-                            <h4 style="color: #4a148c !important; margin: 0 0 10px 0;">📓 Team 5 - Upside</h4>
+                            <h4 style="color: #4a148c !important; margin: 0 0 10px 0;">📓🤠 Team 5 - Upside</h4>
                             
                             <p style="color: #6a1b9a !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Safe picks are for losers!"</p>
                             
@@ -279,7 +279,7 @@ def create_gradio_interface():
                             gr.Markdown("""
                             <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
                             
-                            <h4 style="color: #1b5e20 !important; margin: 0 0 10px 0;">📗 Team 6 - BPA</h4>
+                            <h4 style="color: #1b5e20 !important; margin: 0 0 10px 0;">📗👨‍🏫 Team 6 - BPA</h4>
                             
                             <p style="color: #2e7d32 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Another value drafter to punish reaches."</p>
                             

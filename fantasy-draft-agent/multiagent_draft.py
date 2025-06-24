@@ -78,6 +78,7 @@ class ZeroRBAgent(DraftAgent):
     
     def __init__(self, team_name: str):
         super().__init__(team_name, "Zero RB Strategy", "#E3F2FD", "📘")
+        self.person_emoji = "🤓"  # Analytical nerd
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
         # Prioritize WRs in early rounds
@@ -137,6 +138,7 @@ class BPAAgent(DraftAgent):
     
     def __init__(self, team_name: str):
         super().__init__(team_name, "Best Player Available", "#E8F5E9", "📗")
+        self.person_emoji = "🧑‍💼"  # Business-like, calculated
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
         # Simply take the best available by ADP
@@ -173,6 +175,7 @@ class RobustRBAgent(DraftAgent):
     
     def __init__(self, team_name: str):
         super().__init__(team_name, "Robust RB Strategy", "#FFF3E0", "📙")
+        self.person_emoji = "🧔"  # Old-school, traditional
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
         # Prioritize RBs early
@@ -227,6 +230,7 @@ class UpsideAgent(DraftAgent):
     
     def __init__(self, team_name: str):
         super().__init__(team_name, "Upside Hunter", "#FFFDE7", "📓")
+        self.person_emoji = "🤠"  # Risk-taking cowboy
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
         # Look for high upside players
@@ -278,6 +282,7 @@ class UserAdvisorAgent(DraftAgent):
     
     def __init__(self):
         super().__init__("Your Advisor", "Strategic Advisor", "#FFEBEE", "📕")
+        self.person_emoji = "🧙"  # Wise advisor
         self.user_picks = []
     
     def advise_user(self, available_players: List[str], draft_board: Dict, 
@@ -389,6 +394,7 @@ class MultiAgentMockDraft:
         # Add Team 6 as an AI agent since user is at position 4
         if 6 not in self.agents and user_pick_position != 6:
             self.agents[6] = BPAAgent("Team 6")
+            self.agents[6].person_emoji = "👨‍🏫"  # Professor, methodical
         
         self.all_picks = []
         
@@ -414,10 +420,15 @@ class MultiAgentMockDraft:
     def format_message(self, agent, recipient: str, message: str) -> str:
         """Format a message with agent styling."""
         if hasattr(agent, 'icon'):
+            # Include person emoji if available
+            emojis = agent.icon
+            if hasattr(agent, 'person_emoji'):
+                emojis = f"{agent.icon}{agent.person_emoji}"
+            
             if recipient == "ALL":
-                return f"{agent.icon} **{agent.team_name}**: {message}"
+                return f"{emojis} **{agent.team_name}**: {message}"
             else:
-                return f"{agent.icon} **{agent.team_name}** → {recipient}: {message}"
+                return f"{emojis} **{agent.team_name}** → {recipient}: {message}"
         else:
             # Commissioner
             return f"{agent.icon} **COMMISSIONER**: {message}"

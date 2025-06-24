@@ -21,17 +21,26 @@ def format_agent_message(agent, recipient: str, message: str,
     # Agent colors and styles
     agent_styles = {
         "📘": ("Team 1", "#E3F2FD", "#1976D2"),  # Blue
+        "📘🤓": ("Team 1", "#E3F2FD", "#1976D2"),  # Blue with nerd emoji
         "📗": ("Team 2", "#E8F5E9", "#388E3C"),  # Green
+        "📗🧑‍💼": ("Team 2", "#E8F5E9", "#388E3C"),  # Green with business person
+        "📗👨‍🏫": ("Team 6", "#E8F5E9", "#388E3C"),  # Green with professor
         "📙": ("Team 3", "#FFF3E0", "#F57C00"),  # Orange
+        "📙🧔": ("Team 3", "#FFF3E0", "#F57C00"),  # Orange with beard
         "📕": ("Your Advisor", "#FFEBEE", "#D32F2F"),  # Red
-        "📓": ("Team 5", "#F5E6FF", "#7B1FA2"),  # Purple (changed from yellow)
-        "📜": ("COMMISSIONER", "#ECEFF1", "#455A64"),  # Blue-gray (changed from gold)
+        "📕🧙": ("Your Advisor", "#FFEBEE", "#D32F2F"),  # Red with wizard
+        "📓": ("Team 5", "#F5E6FF", "#7B1FA2"),  # Purple
+        "📓🤠": ("Team 5", "#F5E6FF", "#7B1FA2"),  # Purple with cowboy
+        "📜": ("COMMISSIONER", "#ECEFF1", "#455A64"),  # Blue-gray
         "👤": ("YOUR TEAM", "#E8EAF6", "#3F51B5"),  # Indigo for user
         "💭": ("System", "#FFF9C4", "#FBC02D"),  # Light yellow for loading/system messages
     }
     
     if hasattr(agent, 'icon'):
         icon = agent.icon
+        # Include person emoji if available
+        if hasattr(agent, 'person_emoji'):
+            icon = f"{agent.icon}{agent.person_emoji}"
         if hasattr(agent, 'team_name'):
             name = agent.team_name
         else:
