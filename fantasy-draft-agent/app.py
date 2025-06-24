@@ -147,19 +147,133 @@ def create_gradio_interface():
     """Create the main Gradio interface."""
     app = FantasyDraftApp()
     
-    with gr.Blocks(title="Fantasy Draft Multi-Agent Demo", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Fantasy Draft Multi-Agent Demo", theme=gr.themes.Glass()) as demo:
         with gr.Column(elem_id="main-container"):
             gr.Markdown("""
             # 🏈 Fantasy Draft Multi-Agent Demo
             
-            **Experience a living draft room** where 6 AI agents with distinct strategies compete, communicate, and remember. 
-            You'll draft at position 4 with your advisor's guidance. Watch agents comment on picks, debate strategies, and adapt their plans!
+            **Experience the future of AI interaction:** Watch 6 intelligent agents compete in a fantasy football draft with distinct strategies, real-time trash talk, and persistent memory.
             """)
             
             with gr.Tabs():
                 # Demo Tab
                 with gr.TabItem("🎮 Demo"):
-                    # Single centered button
+                    # Show agent cards first
+                    gr.Markdown("""
+                    ### 🏈 Meet Your Competition
+                    
+                    You'll be drafting at **Position 4** with these AI opponents:
+                    """)
+                    
+                    # Agent cards in a grid - all in one row
+                    with gr.Row():
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E3F2FD; border-left: 4px solid #1976D2; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #1a237e !important; margin: 0 0 10px 0;">📘 Team 1 - Zero RB</h4>
+                            
+                            <p style="color: #1976D2 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs get injured. I'll build around elite WRs."</p>
+                            
+                            <ul style="color: #1a237e !important; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #1a237e !important;">Avoids RBs early</li>
+                            <li style="color: #1a237e !important;">Loads up on WRs</li>
+                            <li style="color: #1a237e !important;">Gets RB value late</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #1b5e20 !important; margin: 0 0 10px 0;">📗 Team 2 - BPA</h4>
+                            
+                            <p style="color: #2e7d32 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Value is value. I don't reach for needs."</p>
+                            
+                            <ul style="color: #1b5e20 !important; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #1b5e20 !important;">Pure value drafting</li>
+                            <li style="color: #1b5e20 !important;">Ignores needs</li>
+                            <li style="color: #1b5e20 !important;">Mocks reaching</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #FFF3E0; border-left: 4px solid #F57C00; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #e65100 !important; margin: 0 0 10px 0;">📙 Team 3 - Robust RB</h4>
+                            
+                            <p style="color: #ef6c00 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs win championships. Period."</p>
+                            
+                            <ul style="color: #e65100 !important; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #e65100 !important;">RBs in rounds 1-2</li>
+                            <li style="color: #e65100 !important;">Old-school approach</li>
+                            <li style="color: #e65100 !important;">Foundation first</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E8EAF6; border-left: 4px solid #3F51B5; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #1a237e !important; margin: 0 0 10px 0;">👤 Position 4 - YOU</h4>
+                            
+                            <p style="color: #3949ab !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">Your draft position with AI guidance</p>
+                            
+                            <ul style="color: #1a237e !important; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #1a237e !important;">📕 Strategic advisor</li>
+                            <li style="color: #1a237e !important;">Real-time guidance</li>
+                            <li style="color: #1a237e !important;">Roster analysis</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #F5E6FF; border-left: 4px solid #7B1FA2; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #4a148c !important; margin: 0 0 10px 0;">📓 Team 5 - Upside</h4>
+                            
+                            <p style="color: #6a1b9a !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Safe picks are for losers!"</p>
+                            
+                            <ul style="color: #4a148c !important; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #4a148c !important;">Seeks breakouts</li>
+                            <li style="color: #4a148c !important;">High risk/reward</li>
+                            <li style="color: #4a148c !important;">Mocks safety</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #1b5e20 !important; margin: 0 0 10px 0;">📗 Team 6 - BPA</h4>
+                            
+                            <p style="color: #2e7d32 !important; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Another value drafter to punish reaches."</p>
+                            
+                            <ul style="color: #1b5e20 !important; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #1b5e20 !important;">Takes obvious value</li>
+                            <li style="color: #1b5e20 !important;">Disciplined approach</li>
+                            <li style="color: #1b5e20 !important;">No sentiment</li>
+                            </ul>
+                            </div>
+                            """)
+                    
+                    gr.Markdown("""
+                    ### 🎮 Draft Format
+                    - **3 Rounds** of snake draft (1→6, 6→1, 1→6)
+                    - **Real-time trash talk** between picks
+                    - **Strategic advisor** guides your selections
+                    - **Memory system** - agents remember and reference earlier picks
+                    
+                    Ready to experience the most realistic AI draft room?
+                    """)
+                    
+                    # Start button at the bottom
                     with gr.Row():
                         with gr.Column():
                             run_multiagent_btn = gr.Button("🏈 Start Mock Draft", variant="primary", size="lg", elem_id="start-button")
@@ -348,13 +462,41 @@ def create_gradio_interface():
         
         # Add custom CSS for better styling
         demo.css = """
+        /* Force white text on dark background for all main content */
         .gradio-container {
             max-width: 800px !important;
             margin: 0 auto !important;
+            color: white !important;
+        }
+        
+        /* Ensure all text elements are white by default */
+        .gradio-container p,
+        .gradio-container h1,
+        .gradio-container h2,
+        .gradio-container h3,
+        .gradio-container h4,
+        .gradio-container h5,
+        .gradio-container h6,
+        .gradio-container span,
+        .gradio-container div,
+        .gradio-container label,
+        .gradio-container .markdown,
+        .gradio-container .prose {
+            color: white !important;
+        }
+        
+        /* Ensure markdown content is white */
+        .markdown-text,
+        .markdown-text p,
+        .markdown-text li,
+        .markdown-text ul,
+        .markdown-text ol {
+            color: white !important;
         }
         
         #main-container {
             text-align: center;
+            color: white !important;
         }
         
         /* Left-align text in How It Works tab */
@@ -366,66 +508,87 @@ def create_gradio_interface():
             margin: 20px auto !important;
             max-width: 300px !important;
         }
-            
-            /* Multi-agent demo specific styles - Force text colors */
-            .markdown-text div[style*="background-color"] {
-                color: #212121 !important;
-            }
-            
-            /* Force text color in all agent-specific styled divs */
-            div[style*="#E3F2FD"], div[style*="#e3f2fd"] {
-                color: #1a237e !important;
-            }
-            
-            div[style*="#E8F5E9"], div[style*="#e8f5e9"] {
-                color: #1b5e20 !important;
-            }
-            
-            div[style*="#FFF3E0"], div[style*="#fff3e0"] {
-                color: #e65100 !important;
-            }
-            
-            div[style*="#FFEBEE"], div[style*="#ffebee"] {
-                color: #b71c1c !important;
-            }
-            
-            div[style*="#F5E6FF"], div[style*="#f5e6ff"] {
-                color: #4a148c !important;
-            }
-            
-            div[style*="#ECEFF1"], div[style*="#eceff1"] {
-                color: #263238 !important;
-            }
-            
-            div[style*="#E8EAF6"], div[style*="#e8eaf6"] {
-                color: #1a237e !important;
-            }
-            
-            div[style*="#F5F5F5"], div[style*="#f5f5f5"] {
-                color: #424242 !important;
-            }
-            
-            /* Specific styling for multiagent output message boxes only */
-            .multiagent-output div[style*="background-color"] {
-                color: #212121 !important;
-            }
-            
-            .multiagent-output div[style*="background-color"] p,
-            .multiagent-output div[style*="background-color"] span,
-            .multiagent-output div[style*="background-color"] strong,
-            .multiagent-output div[style*="background-color"] em {
-                color: inherit !important;
-            }
-            
-            /* Memory boxes specifically */
-            .multiagent-output div[style*="#F5F5F5"] {
-                color: #424242 !important;
-            }
-            
-            #draft-pick-input {
-                font-size: 1.1em;
-            }
-            """
+        
+        /* Only force dark text inside colored message boxes */
+        div[style*="background-color"][style*="border-left"] {
+            color: #212121 !important;
+        }
+        
+        div[style*="background-color"][style*="border-left"] p,
+        div[style*="background-color"][style*="border-left"] strong,
+        div[style*="background-color"][style*="border-left"] em,
+        div[style*="background-color"][style*="border-left"] span,
+        div[style*="background-color"][style*="border-left"] li,
+        div[style*="background-color"][style*="border-left"] ul,
+        div[style*="background-color"][style*="border-left"] h1,
+        div[style*="background-color"][style*="border-left"] h2,
+        div[style*="background-color"][style*="border-left"] h3,
+        div[style*="background-color"][style*="border-left"] h4 {
+            color: #212121 !important;
+        }
+        
+        /* System messages with yellow background */
+        div[style*="#FFF9C4"] {
+            color: #F57C00 !important;
+        }
+        
+        /* Memory boxes */
+        div[style*="#F5F5F5"] {
+            color: #424242 !important;
+        }
+        
+        #draft-pick-input {
+            font-size: 1.1em;
+        }
+        
+        /* Ensure tab labels are visible */
+        .tab-nav button {
+            color: white !important;
+        }
+        
+        /* Ensure multiagent output text is white */
+        .multiagent-output {
+            color: white !important;
+        }
+        
+        .multiagent-output p,
+        .multiagent-output h1,
+        .multiagent-output h2,
+        .multiagent-output h3,
+        .multiagent-output h4,
+        .multiagent-output h5,
+        .multiagent-output h6,
+        .multiagent-output span,
+        .multiagent-output div {
+            color: white !important;
+        }
+        
+        /* Specific rules for dark mode - target Gradio's dark theme class */
+        .dark .gradio-container,
+        .dark .gradio-container *:not([style*="background-color"]) {
+            color: white !important;
+        }
+        
+        /* Ensure description text under title is white */
+        .gradio-container > div > div > div > p {
+            color: white !important;
+        }
+        
+        /* Tab content text */
+        .tabitem .markdown-text {
+            color: white !important;
+        }
+        
+        /* Input labels and text */
+        .gradio-container label {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* Button text that's not in primary buttons */
+        button:not(.primary) {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        """
     
     return demo
 

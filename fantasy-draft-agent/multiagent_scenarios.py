@@ -21,6 +21,7 @@ def format_agent_message(agent, recipient: str, message: str,
         "📓": ("Team 5", "#F5E6FF", "#7B1FA2"),  # Purple (changed from yellow)
         "📜": ("COMMISSIONER", "#ECEFF1", "#455A64"),  # Blue-gray (changed from gold)
         "👤": ("YOUR TEAM", "#E8EAF6", "#3F51B5"),  # Indigo for user
+        "💭": ("System", "#FFF9C4", "#FBC02D"),  # Light yellow for loading/system messages
     }
     
     if hasattr(agent, 'icon'):
@@ -40,20 +41,29 @@ def format_agent_message(agent, recipient: str, message: str,
         elif agent == "user":
             icon = "👤"
             name = "YOUR TEAM"
+        elif agent == "system":
+            icon = "💭"
+            name = "System"
         else:
             return message
     
     style = agent_styles.get(icon, ("Unknown", "#FFFFFF", "#000000"))
     bg_color, border_color = style[1], style[2]
     
-    # Build the message box
+    # Build the message box with more specific color
     html = f'<div style="background-color: {bg_color}; '
     html += f'border-left: 4px solid {border_color}; '
     html += f'padding: 15px; border-radius: 8px; margin: 10px 0; '
-    html += f'color: #212121;">\n\n'
+    html += f'color: #212121 !important;">\n\n'
     
     # Header with sender/recipient
-    if recipient == "ALL":
+    if agent == "system" or icon == "💭":
+        # System messages are centered and italicized
+        html = f'<div style="text-align: center; margin: 10px 0;">\n\n'
+        html += f'*{message}*\n\n'
+        html += '</div>\n\n'
+        return html
+    elif recipient == "ALL":
         html += f'**{icon} {name}**\n\n'
     elif recipient == "USER":
         html += f'**{icon} {name} → You**\n\n'
@@ -134,26 +144,9 @@ def run_interactive_mock_draft():
     # Initialize the draft
     draft = MultiAgentMockDraft(user_pick_position=4)
     
-    # Go straight to team introductions
-    output = "### Team Introductions\n\n"
-    
-    # Show all 6 teams in order
-    for team_num in range(1, 7):
-        if team_num == draft.user_position:
-            # User's introduction
-            output += format_agent_message("user", "ALL", 
-                f"I'm ready to draft at position {team_num}! Let's build a championship team.")
-        elif team_num in draft.agents:
-            # AI agent introduction
-            agent = draft.agents[team_num]
-            output += format_agent_message(agent, "ALL", 
-                f"I'm running a {agent.strategy}. Let's see how this plays out!")
-        else:
-            # This shouldn't happen, but just in case
-            output += f"**Team {team_num}**: [Position not filled]\n\n"
-    
-    output += format_agent_message("commissioner", "ALL", 
-        "Welcome to the draft! 6 teams, 3 rounds. Let's begin!")
+    # Skip introductions and go straight to commissioner welcome
+    output = format_agent_message("commissioner", "ALL", 
+        "Welcome to the draft! 6 teams, 3 rounds, snake format. Let's get started!")
     
     yield output
     
@@ -174,14 +167,21 @@ def run_interactive_mock_draft():
         for pick_in_round, team_num in enumerate(pick_order, 1):
             pick_num = (round_num - 1) * 6 + pick_in_round  # 6 teams per round
             
-            # Show draft board periodically
+            # Show draft board at start of round
             if pick_in_round == 1:
-                output += create_mock_draft_visualization(draft, round_num, pick_num)
-                output += "\n"
-                yield output
+                yield create_mock_draft_visualization(draft, round_num, pick_num)
+                yield "\n"
             
             # Process the pick
             messages, waiting_for_user = draft.simulate_draft_turn(round_num, pick_num, team_num)
+            
+            # Show loading animation for AI agents
+            if team_num != draft.user_position and team_num in draft.agents:
+                agent = draft.agents[team_num]
+                loading_msg = f"💭 *{agent.team_name} is contemplating their pick...*"
+                output += format_agent_message("system", "ALL", loading_msg)
+                yield output
+                time.sleep(0.3)  # Brief pause for loading effect
             
             # Display messages
             output += format_conversation_block(messages)

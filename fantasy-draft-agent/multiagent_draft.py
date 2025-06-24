@@ -37,17 +37,40 @@ class DraftAgent:
         pass
     
     def comment_on_pick(self, team: str, player: str, player_info: Dict) -> Optional[str]:
-        """Generate commentary on another team's pick."""
-        # This will be overridden by specific agent types
-        pass
+        """Generate commentary on another team's pick using LLM."""
+        # Build context for the LLM
+        context = f"""You are {self.team_name}, a fantasy football team manager following a {self.strategy}.
+Your picks so far: {', '.join(self.picks) if self.picks else 'None yet'}
+
+{team} just picked {player} ({player_info['pos']}, ADP: {player_info['adp']}, Tier: {player_info['tier']}).
+
+Based on your strategy and the current draft situation, provide a short, natural comment on this pick. 
+Be competitive and show some personality - you can be critical, sarcastic, or dismissive if the pick doesn't align with your philosophy.
+Don't be overly nice. This is a competitive draft and you want to win. Show confidence in your strategy.
+Keep it under 2 sentences and make it feel like real draft room banter - trash talk is encouraged!"""
+
+        response = self.agent.run(context)
+        return response.strip()
     
     def respond_to_comment(self, commenter: str, comment: str) -> Optional[str]:
-        """Respond to another agent's comment."""
-        # Check if we have context about this commenter
-        relevant_memory = [m for m in self.conversation_memory if m['speaker'] == commenter]
-        if relevant_memory:
-            return f"Like I mentioned earlier, {self.strategy.lower()} is my approach."
-        return None
+        """Respond to another agent's comment using LLM."""
+        # Build conversation context
+        recent_memory = self.conversation_memory[-5:] if len(self.conversation_memory) > 5 else self.conversation_memory
+        
+        context = f"""You are {self.team_name}, following a {self.strategy} in a fantasy draft.
+Your picks: {', '.join(self.picks) if self.picks else 'None yet'}
+
+{commenter} just said to you: "{comment}"
+
+Recent conversation history:
+{chr(10).join([f"- {m['speaker']}: {m['message']}" for m in recent_memory])}
+
+Respond naturally and briefly (1-2 sentences). Be competitive and defend your strategy aggressively.
+You can be sarcastic, dismissive, or fire back with your own trash talk. This is a competition!
+Don't be polite - show confidence and give as good as you get."""
+
+        response = self.agent.run(context)
+        return response.strip()
 
 
 class ZeroRBAgent(DraftAgent):
@@ -67,7 +90,20 @@ class ZeroRBAgent(DraftAgent):
             if best_wrs:
                 best_wrs.sort(key=lambda x: x[1]['adp'])
                 player = best_wrs[0][0]
-                return player, f"Sticking to my Zero RB build. Elite WRs are the foundation!"
+                player_info = best_wrs[0][1]
+                
+                # Generate dynamic reasoning using LLM
+                context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
+Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+
+You're selecting {player} (WR, {player_info['team']}, ADP: {player_info['adp']}).
+
+Explain your pick in 1-2 sentences, emphasizing why this fits your Zero RB strategy. 
+Be confident and maybe a bit cocky about avoiding RBs. Take subtle shots at teams loading up on injury-prone RBs.
+Show personality - you KNOW your strategy is superior."""
+                
+                reasoning = self.agent.run(context).strip()
+                return player, reasoning
         
         # Later rounds, grab RBs
         best_available = [(p, info) for p, info in TOP_PLAYERS.items() 
@@ -76,19 +112,24 @@ class ZeroRBAgent(DraftAgent):
         
         if best_available:
             player = best_available[0][0]
-            pos = TOP_PLAYERS[player]['pos']
-            if round_num > 3 and pos == 'RB':
-                return player, "Time to grab some RB value in the middle rounds."
-            return player, f"Best player available at {pos}."
+            player_info = best_available[0][1]
+            pos = player_info['pos']
+            
+            context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
+Your previous picks: {', '.join(self.picks)}
+
+You're selecting {player} ({pos}, {player_info['team']}, ADP: {player_info['adp']}).
+
+Explain why you're taking this player now, given your Zero RB approach.
+If it's a RB, explain why NOW is the right time (while others reached early). 
+Be smug about getting value while others panicked. Keep it to 1-2 sentences with attitude."""
+            
+            reasoning = self.agent.run(context).strip()
+            return player, reasoning
         
         return "Unknown Player", "Hmm, slim pickings here..."
     
-    def comment_on_pick(self, team: str, player: str, player_info: Dict) -> Optional[str]:
-        if player_info['pos'] == 'RB' and player_info['tier'] == 1:
-            return "Interesting choice! I'm letting others chase RBs while I build my WR corps."
-        elif player_info['pos'] == 'WR' and player_info['tier'] <= 2:
-            return "Great minds think alike! WRs are so much safer."
-        return None
+
 
 
 class BPAAgent(DraftAgent):
@@ -105,21 +146,26 @@ class BPAAgent(DraftAgent):
         
         if best_available:
             player = best_available[0][0]
-            pos = TOP_PLAYERS[player]['pos']
-            return player, f"Can't pass up the value here. {player} is the best on the board!"
+            player_info = best_available[0][1]
+            pos = player_info['pos']
+            
+            # Generate dynamic reasoning using LLM
+            context = f"""You are {self.team_name} following a Best Player Available strategy.
+Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+Round: {len(self.picks) + 1}
+
+You're selecting {player} ({pos}, {player_info['team']}, ADP: {player_info['adp']}).
+
+Explain why this is the best value pick available. Focus on their ranking/ADP value.
+Be condescending about other teams reaching for needs or following rigid strategies.
+You're the smart one taking the obvious value - let them know it. Keep it to 1-2 sentences."""
+            
+            reasoning = self.agent.run(context).strip()
+            return player, reasoning
         
         return "Unknown Player", "Taking the best available..."
     
-    def comment_on_pick(self, team: str, player: str, player_info: Dict) -> Optional[str]:
-        # Check if it was a reach based on ADP
-        # Since we can't access the exact pick number, use the number of our own picks as estimate
-        estimated_pick = len(self.picks) * 6  # 6 teams in the draft
-        
-        if player_info['adp'] > estimated_pick + 10:
-            return f"That's a reach! {player} usually goes later."
-        elif player_info['adp'] < estimated_pick - 10:
-            return f"Great value! Can't believe {player} fell this far."
-        return None
+
 
 
 class RobustRBAgent(DraftAgent):
@@ -139,7 +185,19 @@ class RobustRBAgent(DraftAgent):
             if best_rbs:
                 best_rbs.sort(key=lambda x: x[1]['adp'])
                 player = best_rbs[0][0]
-                return player, "RBs win championships! Locking up my backfield early."
+                player_info = best_rbs[0][1]
+                
+                context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
+Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+
+You're selecting {player} (RB, {player_info['team']}, ADP: {player_info['adp']}).
+
+Explain why this RB is crucial for your Robust RB strategy. Be aggressive about RBs winning championships.
+Mock teams that are going WR-heavy. You're building a REAL team with a strong foundation.
+Be old-school and dismissive of "fancy" WR strategies. Keep it to 1-2 sentences with authority."""
+                
+                reasoning = self.agent.run(context).strip()
+                return player, reasoning
         
         # Best available after that
         best_available = [(p, info) for p, info in TOP_PLAYERS.items() 
@@ -148,16 +206,20 @@ class RobustRBAgent(DraftAgent):
         
         if best_available:
             player = best_available[0][0]
-            return player, f"Adding {player} to my RB-heavy build."
+            player_info = best_available[0][1]
+            
+            context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
+Your previous picks: {', '.join(self.picks)}
+
+You're selecting {player} ({player_info['pos']}, {player_info['team']}, ADP: {player_info['adp']}).
+
+Explain how this pick fits with your RB-heavy build. If it's not a RB, grudgingly admit you need other positions too.
+But emphasize your RB foundation is what matters. Be dismissive of WR-first teams. Keep it to 1-2 sentences."""
+            
+            reasoning = self.agent.run(context).strip()
+            return player, reasoning
         
         return "Unknown Player", "Building around my RBs..."
-    
-    def comment_on_pick(self, team: str, player: str, player_info: Dict) -> Optional[str]:
-        if player_info['pos'] == 'WR' and len(self.picks) < 3:
-            return "Passing on RBs early? Bold move! More for me."
-        elif player_info['pos'] == 'RB':
-            return "Smart pick. RBs are getting scarce fast!"
-        return None
 
 
 class UpsideAgent(DraftAgent):
@@ -167,7 +229,7 @@ class UpsideAgent(DraftAgent):
         super().__init__(team_name, "Upside Hunter", "#FFFDE7", "📓")
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
-        # Look for high upside players (simulate by taking slightly lower ADP)
+        # Look for high upside players
         best_available = [(p, info) for p, info in TOP_PLAYERS.items() 
                          if p in available_players]
         best_available.sort(key=lambda x: x[1]['adp'])
@@ -176,10 +238,37 @@ class UpsideAgent(DraftAgent):
         if len(best_available) > 3 and random.random() > 0.5:
             # Take someone a bit later for "upside"
             player = best_available[2][0]  # Skip top 2, take 3rd
-            return player, f"I'm betting on {player}'s breakout potential!"
+            player_info = best_available[2][1]
+            
+            context = f"""You are {self.team_name}, an Upside Hunter who looks for breakout potential.
+Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+Round: {len(self.picks) + 1}
+
+You're reaching slightly for {player} ({player_info['pos']}, {player_info['team']}, ADP: {player_info['adp']}).
+
+Explain why you see breakout/league-winning potential in this player. Be enthusiastic about their upside.
+Mock the "safe" picks others are making. You're here to WIN, not finish 4th! 
+Championships require RISK! Keep it to 1-2 sentences with swagger."""
+            
+            reasoning = self.agent.run(context).strip()
+            return player, reasoning
+            
         elif best_available:
             player = best_available[0][0]
-            return player, f"{player} has league-winning upside!"
+            player_info = best_available[0][1]
+            
+            context = f"""You are {self.team_name}, an Upside Hunter who looks for league-winners.
+Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+Round: {len(self.picks) + 1}
+
+You're selecting {player} ({player_info['pos']}, {player_info['team']}, ADP: {player_info['adp']}).
+
+Explain what upside or potential you see in this player. Focus on ceiling over floor.
+Be dismissive of "safe" boring picks. You're building a championship roster, not a participation trophy team!
+Keep it to 1-2 sentences with confidence."""
+            
+            reasoning = self.agent.run(context).strip()
+            return player, reasoning
         
         return "Unknown Player", "Going for the home run pick..."
 
@@ -198,10 +287,6 @@ class UserAdvisorAgent(DraftAgent):
         total_picks = sum(len(picks) for picks in draft_board.values())
         round_num = (total_picks // 6) + 1  # 6 teams per round
         
-        # Analyze what others have been doing
-        rb_heavy_teams = [team for team, strat in other_agents_strategies.items() 
-                         if 'RB' in strat]
-        
         # Get best available by position
         best_by_pos = {}
         for pos in ['RB', 'WR', 'QB', 'TE']:
@@ -211,33 +296,47 @@ class UserAdvisorAgent(DraftAgent):
                 candidates.sort(key=lambda x: x[1]['adp'])
                 best_by_pos[pos] = candidates[0]
         
-        advice = f"🎯 **Round {round_num} Advice**\n\n"
+        # Get user's current roster
+        user_picks = self.user_picks
+        user_rbs = [p for p in user_picks if TOP_PLAYERS.get(p, {}).get('pos') == 'RB']
+        user_wrs = [p for p in user_picks if TOP_PLAYERS.get(p, {}).get('pos') == 'WR']
         
-        # Contextual advice based on what's happened
-        if round_num == 1:
-            advice += "For your first pick, I recommend:\n"
-            if best_by_pos.get('RB'):
-                advice += f"• **{best_by_pos['RB'][0]}** - Elite RB to anchor your team\n"
-            if best_by_pos.get('WR'):
-                advice += f"• **{best_by_pos['WR'][0]}** - Top WR for consistency\n"
-        else:
-            # Reference previous picks and strategies
-            if len(rb_heavy_teams) >= 2:
-                advice += "⚠️ Multiple teams are going RB-heavy. WRs might be better value!\n\n"
-            
-            # Check user's roster needs
-            user_rbs = [p for p in self.user_picks if TOP_PLAYERS.get(p, {}).get('pos') == 'RB']
-            user_wrs = [p for p in self.user_picks if TOP_PLAYERS.get(p, {}).get('pos') == 'WR']
-            
-            if len(user_rbs) == 0:
-                advice += "📌 You need a RB! Consider:\n"
-                if best_by_pos.get('RB'):
-                    advice += f"• **{best_by_pos['RB'][0]}**\n"
-            elif len(user_wrs) == 0:
-                advice += "📌 You need a WR! Consider:\n"
-                if best_by_pos.get('WR'):
-                    advice += f"• **{best_by_pos['WR'][0]}**\n"
+        # Analyze what other teams have been doing
+        other_picks_summary = []
+        for team, picks in draft_board.items():
+            if picks and team != 4:  # Not the user
+                recent_pick = picks[-1] if picks else None
+                if recent_pick and recent_pick in TOP_PLAYERS:
+                    other_picks_summary.append(f"Team {team} ({other_agents_strategies.get(f'Team {team}', 'Unknown')}): {recent_pick}")
         
+        # Build context for LLM
+        context = f"""You are an expert fantasy football advisor helping the user in round {round_num} of their draft.
+
+User's current roster:
+- RBs: {', '.join(user_rbs) if user_rbs else 'None'}
+- WRs: {', '.join(user_wrs) if user_wrs else 'None'}
+
+Top available players:
+- Best RB: {best_by_pos.get('RB', [None])[0]} (ADP: {best_by_pos.get('RB', [None, {'adp': 'N/A'}])[1]['adp']})
+- Best WR: {best_by_pos.get('WR', [None])[0]} (ADP: {best_by_pos.get('WR', [None, {'adp': 'N/A'}])[1]['adp']})
+- Best QB: {best_by_pos.get('QB', [None])[0]} (ADP: {best_by_pos.get('QB', [None, {'adp': 'N/A'}])[1]['adp']})
+- Best TE: {best_by_pos.get('TE', [None])[0]} (ADP: {best_by_pos.get('TE', [None, {'adp': 'N/A'}])[1]['adp']})
+
+Recent picks by other teams:
+{chr(10).join(other_picks_summary[-3:]) if other_picks_summary else 'None yet'}
+
+Other team strategies: {', '.join([f"{t}: {s}" for t, s in other_agents_strategies.items()])}
+
+Provide strategic advice for the user's pick. Consider:
+1. Their roster needs
+2. Best available value
+3. What other teams are doing
+4. Position scarcity
+
+Format as: 🎯 **Round {round_num} Advice** followed by 2-3 bullet points with specific player recommendations and reasoning.
+Keep it concise but insightful."""
+        
+        advice = self.agent.run(context).strip()
         return advice
 
 
@@ -377,10 +476,15 @@ class MultiAgentMockDraft:
                         if comment and random.random() > 0.5:  # 50% chance to comment
                             messages.append((other_agent, agent.team_name, comment))
                             
+                            # Store in conversation memory
+                            agent.remember_conversation(other_agent.team_name, comment)
+                            other_agent.remember_conversation(agent.team_name, f"Picked {player}")
+                            
                             # Original agent might respond
                             response = agent.respond_to_comment(other_agent.team_name, comment)
                             if response and random.random() > 0.5:
                                 messages.append((agent, other_agent.team_name, response))
+                                other_agent.remember_conversation(agent.team_name, response)
             
             return messages, player
     
