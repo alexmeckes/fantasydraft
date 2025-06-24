@@ -71,22 +71,26 @@ class FantasyDraftApp:
         # Make the user's pick
         messages = self.current_draft.make_user_pick(player_name)
         
-        # Display messages with delays
+        # Display messages with inline typing effect
         for msg in messages:
             if len(msg) >= 3:
                 agent, recipient, content = msg[:3]
                 
-                # Check if it's a typing indicator
+                # Check if it's a typing indicator - skip it
                 if isinstance(agent, str) and agent.startswith("typing_"):
-                    # Show typing indicator
-                    self.draft_output += format_agent_message(agent, recipient, content)
-                    yield self.draft_output
-                    time.sleep(0.5)  # Short delay for typing
+                    continue  # Skip typing indicators, we'll handle inline
                 else:
-                    # Regular message
+                    # Show "..." first for typing effect
+                    typing_placeholder = format_agent_message(agent, recipient, "...")
+                    self.draft_output += typing_placeholder
+                    yield self.draft_output
+                    time.sleep(0.5)  # Brief typing delay
+                    
+                    # Replace "..." with actual message
+                    self.draft_output = self.draft_output.replace(typing_placeholder, "")
                     self.draft_output += format_agent_message(agent, recipient, content)
                     yield self.draft_output
-                    time.sleep(1.0)  # Longer delay for reading
+                    time.sleep(1.0)  # Reading delay
         
         # Continue the draft from where we left off
         # We need to track where we were in the draft
@@ -124,22 +128,26 @@ class FantasyDraftApp:
                 # Process the pick
                 messages, result = self.current_draft.simulate_draft_turn(round_num, pick_num, team_num)
                 
-                # Display messages with delays
+                # Display messages with inline typing effect
                 for msg in messages:
                     if len(msg) >= 3:
                         agent, recipient, content = msg[:3]
                         
-                        # Check if it's a typing indicator
+                        # Check if it's a typing indicator - skip it
                         if isinstance(agent, str) and agent.startswith("typing_"):
-                            # Show typing indicator
-                            self.draft_output += format_agent_message(agent, recipient, content)
-                            yield self.draft_output
-                            time.sleep(0.5)  # Short delay for typing
+                            continue  # Skip typing indicators, we'll handle inline
                         else:
-                            # Regular message
+                            # Show "..." first for typing effect
+                            typing_placeholder = format_agent_message(agent, recipient, "...")
+                            self.draft_output += typing_placeholder
+                            yield self.draft_output
+                            time.sleep(0.5)  # Brief typing delay
+                            
+                            # Replace "..." with actual message
+                            self.draft_output = self.draft_output.replace(typing_placeholder, "")
                             self.draft_output += format_agent_message(agent, recipient, content)
                             yield self.draft_output
-                            time.sleep(1.0)  # Longer delay for reading
+                            time.sleep(1.0)  # Reading delay
                 
                 if result is None:
                     # It's the user's turn again
@@ -621,14 +629,13 @@ def create_gradio_interface():
             color: rgba(255, 255, 255, 0.9) !important;
         }
         
-        /* Typing indicators */
-        div[style*="color: #666"] {
-            animation: fadeInOut 1.5s ease-in-out infinite;
-            margin: 10px 0;
+        /* Inline typing effect */
+        .typing-dots {
+            animation: pulse 1.0s ease-in-out infinite;
         }
         
-        @keyframes fadeInOut {
-            0%, 100% { opacity: 0.5; }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
             50% { opacity: 1; }
         }
         """
