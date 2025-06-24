@@ -63,8 +63,23 @@ class FantasyDraftApp:
         
         # Make the user's pick
         messages = self.current_draft.make_user_pick(player_name)
-        self.draft_output += format_conversation_block(messages)
-        yield self.draft_output
+        
+        # Display messages with delays
+        for msg in messages:
+            if len(msg) >= 3:
+                agent, recipient, content = msg[:3]
+                
+                # Check if it's a typing indicator
+                if isinstance(agent, str) and agent.startswith("typing_"):
+                    # Show typing indicator
+                    self.draft_output += format_agent_message(agent, recipient, content)
+                    yield self.draft_output
+                    time.sleep(0.5)  # Short delay for typing
+                else:
+                    # Regular message
+                    self.draft_output += format_agent_message(agent, recipient, content)
+                    yield self.draft_output
+                    time.sleep(1.0)  # Longer delay for reading
         
         # Continue the draft from where we left off
         # We need to track where we were in the draft
@@ -105,9 +120,22 @@ class FantasyDraftApp:
                 # Process the pick
                 messages, result = self.current_draft.simulate_draft_turn(round_num, pick_num, team_num)
                 
-                # Display messages
-                self.draft_output += format_conversation_block(messages)
-                yield self.draft_output
+                # Display messages with delays
+                for msg in messages:
+                    if len(msg) >= 3:
+                        agent, recipient, content = msg[:3]
+                        
+                        # Check if it's a typing indicator
+                        if isinstance(agent, str) and agent.startswith("typing_"):
+                            # Show typing indicator
+                            self.draft_output += format_agent_message(agent, recipient, content)
+                            yield self.draft_output
+                            time.sleep(0.5)  # Short delay for typing
+                        else:
+                            # Regular message
+                            self.draft_output += format_agent_message(agent, recipient, content)
+                            yield self.draft_output
+                            time.sleep(1.0)  # Longer delay for reading
                 
                 if result is None:
                     # It's the user's turn again
@@ -587,6 +615,17 @@ def create_gradio_interface():
         /* Button text that's not in primary buttons */
         button:not(.primary) {
             color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* Typing indicators */
+        div[style*="color: #666"] {
+            animation: fadeInOut 1.5s ease-in-out infinite;
+            margin: 10px 0;
+        }
+        
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
         }
         """
     

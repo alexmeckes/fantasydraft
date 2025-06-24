@@ -12,6 +12,12 @@ def format_agent_message(agent, recipient: str, message: str,
                         show_arrow: bool = True) -> str:
     """Format an agent message with proper styling."""
     
+    # Check if this is a typing indicator
+    if isinstance(agent, str) and agent.startswith("typing_"):
+        # Extract the team name from typing_Team X
+        team_name = agent.replace("typing_", "")
+        return f'<div style="color: #666; font-style: italic; margin: 5px 0;">💭 *{team_name} is typing...*</div>\n\n'
+    
     # Agent colors and styles
     agent_styles = {
         "📘": ("Team 1", "#E3F2FD", "#1976D2"),  # Blue
@@ -183,9 +189,18 @@ def run_interactive_mock_draft():
                 yield output
                 time.sleep(0.3)  # Brief pause for loading effect
             
-            # Display messages
-            output += format_conversation_block(messages)
-            yield output
+            # Display messages with delays
+            for msg in messages:
+                if len(msg) >= 3:
+                    agent, recipient, content = msg[:3]
+                    output += format_agent_message(agent, recipient, content)
+                    yield output
+                    
+                    # Add delays based on message type
+                    if isinstance(agent, str) and agent.startswith("typing_"):
+                        time.sleep(0.5)  # Short delay for typing indicators
+                    else:
+                        time.sleep(0.8)  # Slightly longer delay for actual messages
             
             if waiting_for_user is None:
                 # Wait for user input (None means it's the user's turn)

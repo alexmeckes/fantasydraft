@@ -422,6 +422,76 @@ class MultiAgentMockDraft:
             # Commissioner
             return f"{agent.icon} **COMMISSIONER**: {message}"
     
+    def is_pick_controversial(self, player: str, pick_num: int) -> bool:
+        """Determine if a pick is controversial (reach, surprise, etc)."""
+        if player not in TOP_PLAYERS:
+            return False
+        
+        player_info = TOP_PLAYERS[player]
+        expected_pick = pick_num * 1.5  # Rough estimate of expected ADP
+        
+        # Check if it's a reach (picked way above ADP)
+        if player_info['adp'] > expected_pick + 5:
+            return True
+        
+        # Check if it's a position run (3rd player at same position in a row)
+        recent_picks = self.all_picks[-3:]
+        recent_positions = [TOP_PLAYERS.get(p[1], {}).get('pos', '') for p in recent_picks]
+        if recent_positions.count(player_info['pos']) >= 2:
+            return True
+        
+        return False
+    
+    def select_commenters(self, picking_team: int, picked_player: str) -> List[int]:
+        """Select 2-3 agents who should comment on this pick."""
+        if picked_player not in TOP_PLAYERS:
+            return []
+        
+        player_info = TOP_PLAYERS[picked_player]
+        pick_num = len(self.all_picks)
+        available_commenters = [num for num in self.agents.keys() if num != picking_team]
+        
+        selected = []
+        
+        # Priority 1: Next drafter (if not user)
+        snake_order = self.get_draft_order(((pick_num - 1) // 6) + 1)
+        current_pos = snake_order.index(picking_team)
+        if current_pos < len(snake_order) - 1:
+            next_drafter = snake_order[current_pos + 1]
+            if next_drafter in available_commenters:
+                selected.append(next_drafter)
+                available_commenters.remove(next_drafter)
+        
+        # Priority 2: Agent with opposing strategy
+        if picked_player in TOP_PLAYERS and len(selected) < 3:
+            pos = player_info['pos']
+            
+            # Zero RB vs Robust RB conflict
+            if pos == 'RB' and 1 in available_commenters:  # Zero RB agent
+                selected.append(1)
+                available_commenters.remove(1)
+            elif pos == 'WR' and 3 in available_commenters:  # Robust RB agent
+                selected.append(3)
+                available_commenters.remove(3)
+        
+        # Priority 3: Random agent if pick is controversial
+        if self.is_pick_controversial(picked_player, pick_num) and len(selected) < 3 and available_commenters:
+            random_commenter = random.choice(available_commenters)
+            selected.append(random_commenter)
+        
+        # Ensure we have at least 1 commenter, max 3
+        if not selected and available_commenters:
+            selected.append(random.choice(available_commenters))
+        
+        return selected[:3]  # Max 3 commenters
+    
+    def get_draft_order(self, round_num: int) -> List[int]:
+        """Get the draft order for a given round (snake draft)."""
+        if round_num % 2 == 1:
+            return list(range(1, 7))  # 1-6 for odd rounds
+        else:
+            return list(range(6, 0, -1))  # 6-1 for even rounds
+    
     def simulate_draft_turn(self, round_num: int, pick_num: int, team_num: int) -> List[str]:
         """Simulate one pick in the draft. Returns formatted messages."""
         messages = []
@@ -466,25 +536,40 @@ class MultiAgentMockDraft:
             # Agent explains pick
             messages.append((agent, "ALL", reasoning))
             
-            # Other agents might comment
+            # Select 2-3 agents to comment
             if player in TOP_PLAYERS:
                 player_info = TOP_PLAYERS[player]
+                selected_commenters = self.select_commenters(team_num, player)
                 
-                for other_num, other_agent in self.agents.items():
-                    if other_num != team_num:
+                # Generate comments from selected agents
+                for commenter_num in selected_commenters:
+                    other_agent = self.agents.get(commenter_num)
+                    if other_agent:
+                        # Add typing indicator
+                        typing_msg = (f"typing_{other_agent.team_name}", agent.team_name, 
+                                    f"{other_agent.team_name} is typing...")
+                        messages.append(typing_msg)
+                        
+                        # Generate comment
                         comment = other_agent.comment_on_pick(agent.team_name, player, player_info)
-                        if comment and random.random() > 0.5:  # 50% chance to comment
+                        if comment:
                             messages.append((other_agent, agent.team_name, comment))
                             
                             # Store in conversation memory
                             agent.remember_conversation(other_agent.team_name, comment)
                             other_agent.remember_conversation(agent.team_name, f"Picked {player}")
                             
-                            # Original agent might respond
-                            response = agent.respond_to_comment(other_agent.team_name, comment)
-                            if response and random.random() > 0.5:
-                                messages.append((agent, other_agent.team_name, response))
-                                other_agent.remember_conversation(agent.team_name, response)
+                            # 30% chance of response (reduced from 50%)
+                            if random.random() > 0.7:
+                                # Typing indicator for response
+                                response_typing = (f"typing_{agent.team_name}", other_agent.team_name,
+                                                 f"{agent.team_name} is typing...")
+                                messages.append(response_typing)
+                                
+                                response = agent.respond_to_comment(other_agent.team_name, comment)
+                                if response:
+                                    messages.append((agent, other_agent.team_name, response))
+                                    other_agent.remember_conversation(agent.team_name, response)
             
             return messages, player
     
@@ -508,14 +593,23 @@ class MultiAgentMockDraft:
         confirm_msg = self.commissioner.confirm_pick("YOUR TEAM", player_name, pick_num)
         messages.append(("commissioner", "ALL", confirm_msg))
         
-        # Other agents comment on user's pick
+        # Select agents to comment on user's pick
         if player_name in TOP_PLAYERS:
             player_info = TOP_PLAYERS[player_name]
+            selected_commenters = self.select_commenters(self.user_position, player_name)
             
-            for team_num, agent in self.agents.items():
-                comment = agent.comment_on_pick("Your team", player_name, player_info)
-                if comment and random.random() > 0.7:  # 70% chance to comment on user pick
-                    messages.append((agent, "YOUR TEAM", comment))
+            # User picks get slightly more attention - allow up to 3 comments
+            for commenter_num in selected_commenters[:3]:
+                agent = self.agents.get(commenter_num)
+                if agent:
+                    # Add typing indicator
+                    typing_msg = (f"typing_{agent.team_name}", "YOUR TEAM", 
+                                f"{agent.team_name} is typing...")
+                    messages.append(typing_msg)
+                    
+                    comment = agent.comment_on_pick("Your team", player_name, player_info)
+                    if comment:
+                        messages.append((agent, "YOUR TEAM", comment))
         
         return messages
     
