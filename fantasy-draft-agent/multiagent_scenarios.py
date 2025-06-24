@@ -134,13 +134,8 @@ def run_interactive_mock_draft():
     # Initialize the draft
     draft = MultiAgentMockDraft(user_pick_position=4)
     
-    # Opening message
-    output = "# 🏈 Multi-Agent Mock Draft Demo\n\n"
-    output += "> **Experience a living draft room where agents communicate, strategize, and adapt!**\n\n"
-    output += "## 🎭 Meet Your Draft Room\n\n"
-    
-    # Introduce agents
-    output += "### Team Introductions\n\n"
+    # Go straight to team introductions
+    output = "### Team Introductions\n\n"
     
     # Show all 6 teams in order
     for team_num in range(1, 7):
