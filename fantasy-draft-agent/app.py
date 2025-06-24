@@ -219,39 +219,43 @@ def create_gradio_interface():
                     """)
                     
                     gr.Markdown("""
-                    ```
-                    ┌─────────────────┐
-                    │ User Clicks     │
-                    │ Start Button    │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │ Initialize 6    │
-                    │ Unique Agents   │
-                    └────────┬────────┘
-                             │
-                    ┌────────┴────────┐
-                    │                 │
-                    ▼                 ▼
-              ┌─────────┐      ┌─────────┐
-              │ Round 1 │      │ Round 2 │ (Snake)
-              └────┬────┘      └────┬────┘
-                   │                 │
-                   ▼                 ▼
-            Teams 1,2,3 ──► YOU ◄── Team 5,6
-                   │         │        │
-                   ▼         ▼        ▼
-            [A2A Comments] [Pick] [Reactions]
-                   │         │        │
-                   └─────────┴────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │ Memory Updates   │
-                    │ & Next Round     │
-                    └─────────────────┘
-                    ```""")
+                    <div style="background-color: #f5f5f5; padding: 20px; border-radius: 10px; font-family: monospace;">
+                    
+                    <strong>1. INITIALIZATION</strong>
+                    <br>User clicks "Start Mock Draft" → System creates 6 agents
+                    <br>
+                    <br><strong>2. AGENT SETUP</strong>
+                    <br>• Team 1: Zero RB Strategy
+                    <br>• Team 2: Best Player Available  
+                    <br>• Team 3: Robust RB Strategy
+                    <br>• YOU: Position 4 (with Advisor)
+                    <br>• Team 5: Upside Hunter
+                    <br>• Team 6: Best Player Available
+                    <br>
+                    <br><strong>3. DRAFT FLOW (3 Rounds)</strong>
+                    <br>Round 1: Pick Order 1→2→3→YOU→5→6
+                    <br>Round 2: Pick Order 6→5→YOU→3→2→1 (Snake)
+                    <br>Round 3: Pick Order 1→2→3→YOU→5→6
+                    <br>
+                    <br><strong>4. EACH PICK TRIGGERS</strong>
+                    <br>• Agent makes selection based on strategy
+                    <br>• Other agents comment (A2A communication)
+                    <br>• Original agent may respond
+                    <br>• All agents update their memory
+                    <br>
+                    <br><strong>5. USER'S TURN</strong>
+                    <br>• Advisor analyzes draft state
+                    <br>• User sees available players
+                    <br>• User makes pick
+                    <br>• All agents react to user's choice
+                    <br>
+                    <br><strong>6. MEMORY & CONTEXT</strong>
+                    <br>• Each agent remembers all picks
+                    <br>• Agents reference earlier conversations
+                    <br>• Strategies adapt based on draft flow
+                    <br>• Visual memory indicators show retention
+                    
+                    </div>""")
                     
                     gr.Markdown("""
                     ### 🎯 Key Features Demonstrated
@@ -354,6 +358,11 @@ def create_gradio_interface():
         
         #main-container {
             text-align: center;
+        }
+        
+        /* Left-align text in How It Works tab */
+        .tabitem:nth-child(2) {
+            text-align: left !important;
         }
         
         #start-button {
