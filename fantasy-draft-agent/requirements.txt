@@ -1,0 +1,6 @@
+any-agent[openai]
+python-dotenv
+pydantic
+gradio
+# Optional: For enhanced console demos
+# rich

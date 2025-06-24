@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+"""
+Multi-Agent Scenarios and Visualization
+Provides formatted output for multi-agent interactions
+"""
+
+from multiagent_draft import MultiAgentMockDraft, DraftAgent, CommissionerAgent
+import time
+
+
+def format_agent_message(agent, recipient: str, message: str, 
+                        show_arrow: bool = True) -> str:
+    """Format an agent message with proper styling."""
+    
+    # Agent colors and styles
+    agent_styles = {
+        "📘": ("Team 1", "#E3F2FD", "#1976D2"),  # Blue
+        "📗": ("Team 2", "#E8F5E9", "#388E3C"),  # Green
+        "📙": ("Team 3", "#FFF3E0", "#F57C00"),  # Orange
+        "📕": ("Your Advisor", "#FFEBEE", "#D32F2F"),  # Red
+        "📓": ("Team 5", "#F5E6FF", "#7B1FA2"),  # Purple (changed from yellow)
+        "📜": ("COMMISSIONER", "#ECEFF1", "#455A64"),  # Blue-gray (changed from gold)
+        "👤": ("YOUR TEAM", "#E8EAF6", "#3F51B5"),  # Indigo for user
+    }
+    
+    if hasattr(agent, 'icon'):
+        icon = agent.icon
+        if hasattr(agent, 'team_name'):
+            name = agent.team_name
+        else:
+            name = "COMMISSIONER"
+    else:
+        # String agent (for simplified calls)
+        if agent == "commissioner":
+            icon = "📜"
+            name = "COMMISSIONER"
+        elif agent == "advisor":
+            icon = "📕"
+            name = "Your Advisor"
+        elif agent == "user":
+            icon = "👤"
+            name = "YOUR TEAM"
+        else:
+            return message
+    
+    style = agent_styles.get(icon, ("Unknown", "#FFFFFF", "#000000"))
+    bg_color, border_color = style[1], style[2]
+    
+    # Build the message box
+    html = f'<div style="background-color: {bg_color}; '
+    html += f'border-left: 4px solid {border_color}; '
+    html += f'padding: 15px; border-radius: 8px; margin: 10px 0; '
+    html += f'color: #212121;">\n\n'
+    
+    # Header with sender/recipient
+    if recipient == "ALL":
+        html += f'**{icon} {name}**\n\n'
+    elif recipient == "USER":
+        html += f'**{icon} {name} → You**\n\n'
+    elif show_arrow:
+        html += f'**{icon} {name} → {recipient}**\n\n'
+    else:
+        html += f'**{icon} {name}**\n\n'
+    
+    # Message content
+    html += f'{message}\n\n'
+    html += '</div>\n\n'
+    
+    return html
+
+
+def format_conversation_block(messages: list) -> str:
+    """Format a block of messages for display."""
+    output = ""
+    for msg in messages:
+        if len(msg) >= 3:
+            agent, recipient, content = msg[:3]
+            output += format_agent_message(agent, recipient, content)
+    return output
+
+
+def format_memory_indicator(round_num: int, memories: list) -> str:
+    """Format a memory indicator showing what agents remember."""
+    if not memories:
+        return ""
+    
+    output = '<div style="background-color: #F5F5F5; '
+    output += 'border: 2px dashed #9E9E9E; '
+    output += 'padding: 12px; border-radius: 8px; margin: 15px 0; '
+    output += 'color: #424242;">\n\n'
+    output += f'**💭 DRAFT MEMORY (Round {round_num})**\n\n'
+    
+    for memory in memories:
+        output += f'• {memory}\n'
+    
+    output += '\n</div>\n\n'
+    return output
+
+
+def create_mock_draft_visualization(draft: MultiAgentMockDraft, 
+                                  round_num: int, pick_num: int) -> str:
+    """Create a visual representation of the current draft state."""
+    output = f"### 📋 Draft Board - Round {round_num}, Pick {pick_num}\n\n"
+    
+    # Create a simple draft board
+    output += "| Team | Round 1 | Round 2 | Round 3 |\n"
+    output += "|------|---------|---------|----------|\n"
+    
+    for team_num in range(1, 7):  # Show all 6 teams
+        if team_num == draft.user_position:
+            team_name = "**YOU**"
+        else:
+            agent = draft.agents.get(team_num)
+            team_name = agent.team_name if agent else f"Team {team_num}"
+        
+        picks = draft.draft_board.get(team_num, [])
+        row = f"| {team_name} "
+        
+        for round_idx in range(3):
+            if round_idx < len(picks):
+                row += f"| {picks[round_idx]} "
+            else:
+                row += "| - "
+        
+        row += "|\n"
+        output += row
+    
+    return output
+
+
+def run_interactive_mock_draft():
+    """Run an interactive mock draft demo that yields formatted output."""
+    
+    # Initialize the draft
+    draft = MultiAgentMockDraft(user_pick_position=4)
+    
+    # Opening message
+    output = "# 🏈 Multi-Agent Mock Draft Demo\n\n"
+    output += "> **Experience a living draft room where agents communicate, strategize, and adapt!**\n\n"
+    output += "## 🎭 Meet Your Draft Room\n\n"
+    
+    # Introduce agents
+    output += "### Team Introductions\n\n"
+    
+    # Show all 6 teams in order
+    for team_num in range(1, 7):
+        if team_num == draft.user_position:
+            # User's introduction
+            output += format_agent_message("user", "ALL", 
+                f"I'm ready to draft at position {team_num}! Let's build a championship team.")
+        elif team_num in draft.agents:
+            # AI agent introduction
+            agent = draft.agents[team_num]
+            output += format_agent_message(agent, "ALL", 
+                f"I'm running a {agent.strategy}. Let's see how this plays out!")
+        else:
+            # This shouldn't happen, but just in case
+            output += f"**Team {team_num}**: [Position not filled]\n\n"
+    
+    output += format_agent_message("commissioner", "ALL", 
+        "Welcome to the draft! 6 teams, 3 rounds. Let's begin!")
+    
+    yield output
+    
+    # Track memories for demonstration
+    draft_memories = []
+    
+    # Run the draft
+    for round_num in range(1, 4):  # 3 rounds
+        output += f"\n## 🔄 ROUND {round_num}\n\n"
+        yield output
+        
+        # Snake draft order - 6 teams total
+        if round_num % 2 == 1:
+            pick_order = list(range(1, 7))  # 1-6 for odd rounds
+        else:
+            pick_order = list(range(6, 0, -1))  # 6-1 for even rounds
+        
+        for pick_in_round, team_num in enumerate(pick_order, 1):
+            pick_num = (round_num - 1) * 6 + pick_in_round  # 6 teams per round
+            
+            # Show draft board periodically
+            if pick_in_round == 1:
+                output += create_mock_draft_visualization(draft, round_num, pick_num)
+                output += "\n"
+                yield output
+            
+            # Process the pick
+            messages, waiting_for_user = draft.simulate_draft_turn(round_num, pick_num, team_num)
+            
+            # Display messages
+            output += format_conversation_block(messages)
+            yield output
+            
+            if waiting_for_user is None:
+                # Wait for user input (None means it's the user's turn)
+                output += "\n**⏰ YOU'RE ON THE CLOCK! Type your pick below.**\n\n"
+                yield (draft, output)  # Yield tuple to trigger UI update
+                return  # Stop the generator here
+            
+            # Add memory indicators for multi-turn demonstration
+            if round_num > 1 and pick_in_round % 2 == 0:
+                # Show that agents remember previous picks
+                if team_num in draft.agents:
+                    agent = draft.agents[team_num]
+                    if len(agent.picks) > 1:
+                        memory = f"{agent.team_name} has drafted: {', '.join(agent.picks)}"
+                        draft_memories.append(memory)
+                
+                if draft_memories:
+                    output += format_memory_indicator(round_num, draft_memories[-2:])
+                    yield output
+            
+            time.sleep(0.5)  # Brief pause between picks
+        
+        # End of round summary
+        output += format_agent_message("commissioner", "ALL", 
+            f"That's the end of Round {round_num}!")
+        yield output
+    
+    # Final summary
+    output += "\n## 📊 FINAL RESULTS\n\n"
+    output += draft.get_draft_summary()
+    yield output
+
+
+def create_quick_multiagent_demo():
+    """Create a quick demonstration of multi-agent communication."""
+    
+    output = "# 🤝 Multi-Agent Communication Demo\n\n"
+    output += "> **Watch how agents discuss, debate, and remember!**\n\n"
+    
+    # Simulate a conversation about a pick
+    messages = [
+        ("📘", "ALL", "I'm taking **Justin Jefferson** with the first pick. Zero RB all the way!"),
+        ("📙", "📘", "Leaving McCaffrey on the board? That's a mistake!"),
+        ("📘", "📙", "RBs get injured. I'll take my chances with elite WRs."),
+        ("📗", "ALL", "Interesting debate! I'll take whoever falls to me - best player available."),
+    ]
+    
+    output += "## Turn 1: The First Pick Debate\n\n"
+    
+    for icon, recipient, message in messages:
+        # Create a mock agent for formatting
+        class MockAgent:
+            def __init__(self, icon):
+                self.icon = icon
+                if icon == "📘":
+                    self.team_name = "Team 1"
+                elif icon == "📙":
+                    self.team_name = "Team 3"
+                elif icon == "📗":
+                    self.team_name = "Team 2"
+        
+        agent = MockAgent(icon)
+        output += format_agent_message(agent, recipient, message)
+        yield output
+        time.sleep(0.5)
+    
+    # Show memory
+    output += format_memory_indicator(1, [
+        "Team 1 committed to Zero RB strategy",
+        "Team 3 prefers RB-heavy approach",
+        "Teams are aware of each other's strategies"
+    ])
+    yield output
+    
+    # Continue conversation
+    output += "\n## Turn 2: Reacting to Strategies\n\n"
+    
+    messages2 = [
+        ("📙", "ALL", "With pick #3, I select **Christian McCaffrey**. Thanks for passing!"),
+        ("📘", "📙", "Like I said, enjoy the injury risk. I'm happy with Jefferson."),
+        ("📗", "ALL", "The top 2 players are gone. **CeeDee Lamb** gives me great value at #2."),
+        ("📓", "ALL", "These conservative picks... I'm hunting for league-winners!")
+    ]
+    
+    for icon, recipient, message in messages2:
+        agent = MockAgent(icon)
+        if icon == "📓":
+            agent.team_name = "Team 5"
+        output += format_agent_message(agent, recipient, message)
+        yield output
+        time.sleep(0.5)
+    
+    output += "\n## 🎯 Key Multi-Agent Features Demonstrated\n\n"
+    output += "✅ **Agent-to-Agent Communication**: Direct responses between agents\n"
+    output += "✅ **Strategy Awareness**: Agents know and react to others' strategies\n"
+    output += "✅ **Memory Persistence**: Agents reference earlier statements\n"
+    output += "✅ **Dynamic Adaptation**: Strategies influence the draft flow\n"
+    
+    yield output 
