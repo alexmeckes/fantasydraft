@@ -1,6 +1,6 @@
-# Fantasy Draft Agent 🏈
+# Fantasy Draft Multi-Agent Demo 🏈
 
-An AI-powered fantasy football draft assistant built with the any-agent framework, demonstrating multi-turn conversations and multi-agent interactions.
+A focused demonstration of AI agents with distinct strategies competing in a mock draft, showcasing agent-to-agent communication and multi-turn memory capabilities using the any-agent framework.
 
 ## Overview
 
