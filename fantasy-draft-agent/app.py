@@ -14,7 +14,6 @@ from data import TOP_PLAYERS
 from multiagent_draft import MultiAgentMockDraft
 from multiagent_scenarios import (
     run_interactive_mock_draft,
-    create_quick_multiagent_demo,
     format_conversation_block
 )
 
@@ -27,37 +26,30 @@ class FantasyDraftApp:
         self.current_draft = None  # Store the current mock draft
         self.draft_output = ""  # Store the draft output so far
     
-    def run_multiagent_demo(self, demo_type: str):
-        """Run a multi-agent demonstration."""
-        if demo_type == "Quick A2A Demo":
-            # Run the quick communication demo
-            for output in create_quick_multiagent_demo():
+    def run_multiagent_demo(self):
+        """Run the mock draft demonstration."""
+        # Run the interactive mock draft
+        from multiagent_scenarios import run_interactive_mock_draft
+        
+        # Reset any previous draft
+        self.current_draft = None
+        self.draft_output = ""
+        
+        # Run the draft generator
+        draft_generator = run_interactive_mock_draft()
+        
+        for output in draft_generator:
+            # Check if this is a tuple (draft state, output)
+            if isinstance(output, tuple):
+                # This means it's the user's turn
+                self.current_draft, self.draft_output = output
+                # Add a special marker for Gradio to detect
+                yield self.draft_output + "\n<!--USER_TURN-->"
+                return
+            else:
+                # Regular output
+                self.draft_output = output
                 yield output
-        elif demo_type == "Mock Draft":
-            # Run the interactive mock draft
-            from multiagent_scenarios import run_interactive_mock_draft
-            
-            # Reset any previous draft
-            self.current_draft = None
-            self.draft_output = ""
-            
-            # Run the draft generator
-            draft_generator = run_interactive_mock_draft()
-            
-            for output in draft_generator:
-                # Check if this is a tuple (draft state, output)
-                if isinstance(output, tuple):
-                    # This means it's the user's turn
-                    self.current_draft, self.draft_output = output
-                    # Add a special marker for Gradio to detect
-                    yield self.draft_output + "\n<!--USER_TURN-->"
-                    return
-                else:
-                    # Regular output
-                    self.draft_output = output
-                    yield output
-        else:
-            yield "Please select a demo type."
     
     def continue_mock_draft(self, player_name: str):
         """Continue the mock draft after user makes a pick."""
@@ -156,195 +148,184 @@ def create_gradio_interface():
     app = FantasyDraftApp()
     
     with gr.Blocks(title="Fantasy Draft Multi-Agent Demo", theme=gr.themes.Soft()) as demo:
-        gr.Markdown("""
-        # 🏈 Fantasy Draft Multi-Agent Demo
-        
-        Experience AI agents with distinct strategies competing in a mock draft!
-        Watch them debate, adapt, and remember as they build their teams.
-        """)
-        
-        gr.Markdown("## 🤝 Multi-Agent Mock Draft")
-        gr.Markdown("""
-        ### Features Demonstrated:
-        - **Agent-to-Agent (A2A) Communication**: Agents comment on each other's picks
-        - **Multi-Turn Memory**: Agents remember previous interactions and strategies
-        - **Interactive Drafting**: You draft at position 4 with AI advisor guidance
-        - **Distinct Personalities**: Each agent follows a unique draft strategy
-        
-        ### 🎭 Agent Roster
-        - 📘 **Team 1**: Zero RB Strategy - Prioritizes WRs early
-        - 📗 **Team 2**: Best Player Available - Always takes highest-ranked
-        - 📙 **Team 3**: Robust RB Strategy - Loads up on RBs
-        - 👤 **YOU**: Draft at position 4 with advisor help
-        - 📓 **Team 5**: Upside Hunter - Targets breakout candidates
-        - 📜 **Commissioner**: Manages the draft flow
-        """)
-        
-        with gr.Row():
-            with gr.Column(scale=1):
-                multiagent_demo_select = gr.Dropdown(
-                    choices=["Quick A2A Demo", "Mock Draft"],
-                    value="Quick A2A Demo",
-                    label="Select Demo Type",
-                    info="Quick demo shows agent communication, Mock Draft is interactive"
-                )
-                run_multiagent_btn = gr.Button("▶️ Run Multi-Agent Demo", variant="primary", size="lg")
-                
-            with gr.Column(scale=2):
-                multiagent_output = gr.Markdown(elem_classes=["multiagent-output"])
-                
-                # Mock draft interaction
-                with gr.Row(visible=False) as mock_draft_controls:
-                    with gr.Column():
-                        draft_pick_input = gr.Textbox(
-                            label="Your Pick",
-                            placeholder="Type player name and press Enter (e.g., 'Justin Jefferson')",
-                            elem_id="draft-pick-input"
+        with gr.Column(elem_id="main-container"):
+            gr.Markdown("""
+            # 🏈 Fantasy Draft Multi-Agent Demo
+            
+            **Experience a living draft room** where 6 AI agents with distinct strategies compete, communicate, and remember. 
+            You'll draft at position 4 with your advisor's guidance. Watch agents comment on picks, debate strategies, and adapt their plans!
+            """)
+            
+            # Single centered button
+            with gr.Row():
+                with gr.Column():
+                    run_multiagent_btn = gr.Button("🏈 Start Mock Draft", variant="primary", size="lg", elem_id="start-button")
+            
+            # Main output area
+            multiagent_output = gr.Markdown(elem_classes=["multiagent-output"])
+            
+            # Mock draft interaction (hidden until needed)
+            with gr.Row(visible=False) as mock_draft_controls:
+                with gr.Column():
+                    draft_pick_input = gr.Textbox(
+                        label="Your Pick",
+                        placeholder="Type player name and press Enter (e.g., 'Justin Jefferson')",
+                        elem_id="draft-pick-input"
+                    )
+                    submit_pick_btn = gr.Button("Submit Pick", variant="primary")
+                    
+                    # Available players display
+                    with gr.Accordion("📋 Available Players", visible=False) as available_accordion:
+                        available_players_display = gr.Textbox(
+                            label="Top 20 Available",
+                            lines=15,
+                            interactive=False
                         )
-                        submit_pick_btn = gr.Button("Submit Pick", variant="primary")
-                        
-                        # Available players display
-                        with gr.Accordion("📋 Available Players", visible=False) as available_accordion:
-                            available_players_display = gr.Textbox(
-                                label="Top 20 Available",
-                                lines=15,
-                                interactive=False
-                            )
-        
-        # Function to check if it's user's turn and show/hide controls
-        def check_user_turn(output_text):
-            """Check if output indicates it's user's turn."""
-            if "<!--USER_TURN-->" in output_text:
-                # Remove the marker from display
-                clean_output = output_text.replace("<!--USER_TURN-->", "")
-                # Get available players
-                if app.current_draft:
-                    available = app.current_draft.get_available_players()
-                    available_text = "Available Players:\n\n"
-                    for player in sorted(available)[:20]:  # Show top 20
-                        if player in TOP_PLAYERS:
-                            info = TOP_PLAYERS[player]
-                            available_text += f"• {player} ({info['pos']}, {info['team']})\n"
+            
+            # Function to check if it's user's turn and show/hide controls
+            def check_user_turn(output_text):
+                """Check if output indicates it's user's turn."""
+                if "<!--USER_TURN-->" in output_text:
+                    # Remove the marker from display
+                    clean_output = output_text.replace("<!--USER_TURN-->", "")
+                    # Get available players
+                    if app.current_draft:
+                        available = app.current_draft.get_available_players()
+                        available_text = "Available Players:\n\n"
+                        for player in sorted(available)[:20]:  # Show top 20
+                            if player in TOP_PLAYERS:
+                                info = TOP_PLAYERS[player]
+                                available_text += f"• {player} ({info['pos']}, {info['team']})\n"
+                    else:
+                        available_text = "No draft active"
+                    
+                    return (
+                        clean_output,  # Clean output
+                        gr.update(visible=True),  # Show draft controls
+                        gr.update(visible=True, open=True),  # Show available players and open it
+                        available_text,  # Available players list
+                        ""  # Clear the input
+                    )
                 else:
-                    available_text = "No draft active"
-                
-                return (
-                    clean_output,  # Clean output
-                    gr.update(visible=True),  # Show draft controls
-                    gr.update(visible=True, open=True),  # Show available players and open it
-                    available_text,  # Available players list
-                    ""  # Clear the input
-                )
-            else:
-                return (
-                    output_text,  # Regular output
-                    gr.update(visible=False),  # Hide draft controls
-                    gr.update(visible=False),  # Hide available players
-                    "",  # Clear available list
-                    ""  # Clear the input
-                )
-        
-        # Run multi-agent demo with control visibility handling
-        def run_and_check(demo_type):
-            """Run demo and check for user turn."""
-            for output in app.run_multiagent_demo(demo_type):
-                result = check_user_turn(output)
-                yield result
-        
-        run_multiagent_btn.click(
-            run_and_check,
-            multiagent_demo_select,
-            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
-            show_progress=True
-        )
-        
-        # Continue draft after user pick
-        def submit_and_continue(player_name):
-            """Submit pick and continue draft."""
-            for output in app.continue_mock_draft(player_name):
-                result = check_user_turn(output)
-                yield result
-        
-        submit_pick_btn.click(
-            submit_and_continue,
-            draft_pick_input,
-            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
-            show_progress=True
-        )
-        
-        # Also submit on enter
-        draft_pick_input.submit(
-            submit_and_continue,
-            draft_pick_input,
-            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
-            show_progress=True
-        )
-        
-        # Add custom CSS for better styling
+                    return (
+                        output_text,  # Regular output
+                        gr.update(visible=False),  # Hide draft controls
+                        gr.update(visible=False),  # Hide available players
+                        "",  # Clear available list
+                        ""  # Clear the input
+                    )
+            
+            # Run multi-agent demo with control visibility handling
+            def run_and_check():
+                """Run demo and check for user turn."""
+                for output in app.run_multiagent_demo():
+                    result = check_user_turn(output)
+                    yield result
+            
+            run_multiagent_btn.click(
+                run_and_check,
+                None,
+                [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+                show_progress=True
+            )
+            
+            # Continue draft after user pick
+            def submit_and_continue(player_name):
+                """Submit pick and continue draft."""
+                for output in app.continue_mock_draft(player_name):
+                    result = check_user_turn(output)
+                    yield result
+            
+            submit_pick_btn.click(
+                submit_and_continue,
+                draft_pick_input,
+                [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+                show_progress=True
+            )
+            
+            # Also submit on enter
+            draft_pick_input.submit(
+                submit_and_continue,
+                draft_pick_input,
+                [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+                show_progress=True
+            )
+            
+                    # Add custom CSS for better styling
         demo.css = """
         .gradio-container {
-            max-width: 1200px !important;
+            max-width: 800px !important;
+            margin: 0 auto !important;
         }
         
-        /* Multi-agent demo specific styles - Force text colors */
-        .markdown-text div[style*="background-color"] {
-            color: #212121 !important;
+        #main-container {
+            text-align: center;
         }
         
-        /* Force text color in all agent-specific styled divs */
-        div[style*="#E3F2FD"], div[style*="#e3f2fd"] {
-            color: #1a237e !important;
+        #start-button {
+            margin: 20px auto !important;
+            max-width: 300px !important;
         }
-        
-        div[style*="#E8F5E9"], div[style*="#e8f5e9"] {
-            color: #1b5e20 !important;
-        }
-        
-        div[style*="#FFF3E0"], div[style*="#fff3e0"] {
-            color: #e65100 !important;
-        }
-        
-        div[style*="#FFEBEE"], div[style*="#ffebee"] {
-            color: #b71c1c !important;
-        }
-        
-        div[style*="#F5E6FF"], div[style*="#f5e6ff"] {
-            color: #4a148c !important;
-        }
-        
-        div[style*="#ECEFF1"], div[style*="#eceff1"] {
-            color: #263238 !important;
-        }
-        
-        div[style*="#E8EAF6"], div[style*="#e8eaf6"] {
-            color: #1a237e !important;
-        }
-        
-        div[style*="#F5F5F5"], div[style*="#f5f5f5"] {
-            color: #424242 !important;
-        }
-        
-        /* Specific styling for multiagent output message boxes only */
-        .multiagent-output div[style*="background-color"] {
-            color: #212121 !important;
-        }
-        
-        .multiagent-output div[style*="background-color"] p,
-        .multiagent-output div[style*="background-color"] span,
-        .multiagent-output div[style*="background-color"] strong,
-        .multiagent-output div[style*="background-color"] em {
-            color: inherit !important;
-        }
-        
-        /* Memory boxes specifically */
-        .multiagent-output div[style*="#F5F5F5"] {
-            color: #424242 !important;
-        }
-        
-        #draft-pick-input {
-            font-size: 1.1em;
-        }
-        """
+            
+            /* Multi-agent demo specific styles - Force text colors */
+            .markdown-text div[style*="background-color"] {
+                color: #212121 !important;
+            }
+            
+            /* Force text color in all agent-specific styled divs */
+            div[style*="#E3F2FD"], div[style*="#e3f2fd"] {
+                color: #1a237e !important;
+            }
+            
+            div[style*="#E8F5E9"], div[style*="#e8f5e9"] {
+                color: #1b5e20 !important;
+            }
+            
+            div[style*="#FFF3E0"], div[style*="#fff3e0"] {
+                color: #e65100 !important;
+            }
+            
+            div[style*="#FFEBEE"], div[style*="#ffebee"] {
+                color: #b71c1c !important;
+            }
+            
+            div[style*="#F5E6FF"], div[style*="#f5e6ff"] {
+                color: #4a148c !important;
+            }
+            
+            div[style*="#ECEFF1"], div[style*="#eceff1"] {
+                color: #263238 !important;
+            }
+            
+            div[style*="#E8EAF6"], div[style*="#e8eaf6"] {
+                color: #1a237e !important;
+            }
+            
+            div[style*="#F5F5F5"], div[style*="#f5f5f5"] {
+                color: #424242 !important;
+            }
+            
+            /* Specific styling for multiagent output message boxes only */
+            .multiagent-output div[style*="background-color"] {
+                color: #212121 !important;
+            }
+            
+            .multiagent-output div[style*="background-color"] p,
+            .multiagent-output div[style*="background-color"] span,
+            .multiagent-output div[style*="background-color"] strong,
+            .multiagent-output div[style*="background-color"] em {
+                color: inherit !important;
+            }
+            
+            /* Memory boxes specifically */
+            .multiagent-output div[style*="#F5F5F5"] {
+                color: #424242 !important;
+            }
+            
+            #draft-pick-input {
+                font-size: 1.1em;
+            }
+            """
     
     return demo
 
