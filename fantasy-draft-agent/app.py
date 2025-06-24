@@ -156,102 +156,196 @@ def create_gradio_interface():
             You'll draft at position 4 with your advisor's guidance. Watch agents comment on picks, debate strategies, and adapt their plans!
             """)
             
-            # Single centered button
-            with gr.Row():
-                with gr.Column():
-                    run_multiagent_btn = gr.Button("🏈 Start Mock Draft", variant="primary", size="lg", elem_id="start-button")
-            
-            # Main output area
-            multiagent_output = gr.Markdown(elem_classes=["multiagent-output"])
-            
-            # Mock draft interaction (hidden until needed)
-            with gr.Row(visible=False) as mock_draft_controls:
-                with gr.Column():
-                    draft_pick_input = gr.Textbox(
-                        label="Your Pick",
-                        placeholder="Type player name and press Enter (e.g., 'Justin Jefferson')",
-                        elem_id="draft-pick-input"
-                    )
-                    submit_pick_btn = gr.Button("Submit Pick", variant="primary")
+            with gr.Tabs():
+                # Demo Tab
+                with gr.TabItem("🎮 Demo"):
+                    # Single centered button
+                    with gr.Row():
+                        with gr.Column():
+                            run_multiagent_btn = gr.Button("🏈 Start Mock Draft", variant="primary", size="lg", elem_id="start-button")
                     
-                    # Available players display
-                    with gr.Accordion("📋 Available Players", visible=False) as available_accordion:
-                        available_players_display = gr.Textbox(
-                            label="Top 20 Available",
-                            lines=15,
-                            interactive=False
-                        )
-            
-            # Function to check if it's user's turn and show/hide controls
-            def check_user_turn(output_text):
-                """Check if output indicates it's user's turn."""
-                if "<!--USER_TURN-->" in output_text:
-                    # Remove the marker from display
-                    clean_output = output_text.replace("<!--USER_TURN-->", "")
-                    # Get available players
-                    if app.current_draft:
-                        available = app.current_draft.get_available_players()
-                        available_text = "Available Players:\n\n"
-                        for player in sorted(available)[:20]:  # Show top 20
-                            if player in TOP_PLAYERS:
-                                info = TOP_PLAYERS[player]
-                                available_text += f"• {player} ({info['pos']}, {info['team']})\n"
-                    else:
-                        available_text = "No draft active"
+                    # Main output area
+                    multiagent_output = gr.Markdown(elem_classes=["multiagent-output"])
                     
-                    return (
-                        clean_output,  # Clean output
-                        gr.update(visible=True),  # Show draft controls
-                        gr.update(visible=True, open=True),  # Show available players and open it
-                        available_text,  # Available players list
-                        ""  # Clear the input
-                    )
+                    # Mock draft interaction (hidden until needed)
+                    with gr.Row(visible=False) as mock_draft_controls:
+                        with gr.Column():
+                            draft_pick_input = gr.Textbox(
+                                label="Your Pick",
+                                placeholder="Type player name and press Enter (e.g., 'Justin Jefferson')",
+                                elem_id="draft-pick-input"
+                            )
+                            submit_pick_btn = gr.Button("Submit Pick", variant="primary")
+                            
+                            # Available players display
+                            with gr.Accordion("📋 Available Players", visible=False) as available_accordion:
+                                available_players_display = gr.Textbox(
+                                    label="Top 20 Available",
+                                    lines=15,
+                                    interactive=False
+                                )
+                
+                # How It Works Tab
+                with gr.TabItem("🔧 How It Works"):
+                    gr.Markdown("""
+                    ## Technical Implementation
+                    
+                    This demo showcases advanced multi-agent capabilities using the **any-agent framework**.
+                    
+                    ### 🤖 Framework: any-agent (TinyAgent)
+                    
+                    - **Lightweight**: < 100 lines of core agent code
+                    - **Flexible**: Supports multiple LLM providers (OpenAI, Anthropic, etc.)
+                    - **Multi-turn ready**: Built-in conversation history management
+                    - **Model**: GPT-4 (configurable)
+                    
+                    ### 🧠 Multi-Turn Memory System
+                    
+                    Each agent maintains:
+                    - **Conversation History**: Full context of all interactions
+                    - **Draft State**: Current picks, available players, round info
+                    - **Strategy Memory**: Remembers own strategy and others' approaches
+                    - **Pick History**: Tracks all selections for informed decisions
+                    
+                    ### 💬 Agent-to-Agent (A2A) Communication
+                    
+                    Agents can:
+                    - **Comment on picks**: React to other agents' selections
+                    - **Respond to comments**: Defend their strategies
+                    - **Remember debates**: Reference earlier conversations
+                    - **Adapt strategies**: Adjust based on draft flow
+                    
+                    ### 📊 Architecture Flow
+                    """)
+                    
+                    gr.Markdown("""
+                    ```
+                    ┌─────────────────┐
+                    │ User Clicks     │
+                    │ Start Button    │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │ Initialize 6    │
+                    │ Unique Agents   │
+                    └────────┬────────┘
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+                    ▼                 ▼
+              ┌─────────┐      ┌─────────┐
+              │ Round 1 │      │ Round 2 │ (Snake)
+              └────┬────┘      └────┬────┘
+                   │                 │
+                   ▼                 ▼
+            Teams 1,2,3 ──► YOU ◄── Team 5,6
+                   │         │        │
+                   ▼         ▼        ▼
+            [A2A Comments] [Pick] [Reactions]
+                   │         │        │
+                   └─────────┴────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │ Memory Updates   │
+                    │ & Next Round     │
+                    └─────────────────┘
+                    ```""")
+                    
+                    gr.Markdown("""
+                    ### 🎯 Key Features Demonstrated
+                    
+                    1. **Persistent Context**: Each agent remembers all previous interactions
+                    2. **Strategic Personalities**: 5 distinct draft strategies competing
+                    3. **Dynamic Adaptation**: Agents adjust based on draft progression
+                    4. **Natural Dialogue**: Human-like commentary and debates
+                    5. **User Integration**: Seamless human participation with AI guidance
+                    
+                    ### 📝 Implementation Details
+                    
+                    - **Agent Classes**: Inheritance-based design with base `DraftAgent`
+                    - **Message Formatting**: Custom HTML/CSS for visual distinction
+                    - **State Management**: Draft board tracking and validation
+                    - **Memory Indicators**: Visual cues showing context retention
+                    
+                    ### 🚀 Why This Matters
+                    
+                    This demo proves that sophisticated multi-agent systems can be built with minimal code,
+                    showcasing the power of modern LLMs when properly orchestrated. The any-agent framework
+                    makes it easy to create agents that truly communicate and remember, not just respond.
+                    """)
+        
+        # Function to check if it's user's turn and show/hide controls
+        def check_user_turn(output_text):
+            """Check if output indicates it's user's turn."""
+            if "<!--USER_TURN-->" in output_text:
+                # Remove the marker from display
+                clean_output = output_text.replace("<!--USER_TURN-->", "")
+                # Get available players
+                if app.current_draft:
+                    available = app.current_draft.get_available_players()
+                    available_text = "Available Players:\n\n"
+                    for player in sorted(available)[:20]:  # Show top 20
+                        if player in TOP_PLAYERS:
+                            info = TOP_PLAYERS[player]
+                            available_text += f"• {player} ({info['pos']}, {info['team']})\n"
                 else:
-                    return (
-                        output_text,  # Regular output
-                        gr.update(visible=False),  # Hide draft controls
-                        gr.update(visible=False),  # Hide available players
-                        "",  # Clear available list
-                        ""  # Clear the input
-                    )
-            
-            # Run multi-agent demo with control visibility handling
-            def run_and_check():
-                """Run demo and check for user turn."""
-                for output in app.run_multiagent_demo():
-                    result = check_user_turn(output)
-                    yield result
-            
-            run_multiagent_btn.click(
-                run_and_check,
-                None,
-                [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
-                show_progress=True
-            )
-            
-            # Continue draft after user pick
-            def submit_and_continue(player_name):
-                """Submit pick and continue draft."""
-                for output in app.continue_mock_draft(player_name):
-                    result = check_user_turn(output)
-                    yield result
-            
-            submit_pick_btn.click(
-                submit_and_continue,
-                draft_pick_input,
-                [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
-                show_progress=True
-            )
-            
-            # Also submit on enter
-            draft_pick_input.submit(
-                submit_and_continue,
-                draft_pick_input,
-                [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
-                show_progress=True
-            )
-            
-                    # Add custom CSS for better styling
+                    available_text = "No draft active"
+                
+                return (
+                    clean_output,  # Clean output
+                    gr.update(visible=True),  # Show draft controls
+                    gr.update(visible=True, open=True),  # Show available players and open it
+                    available_text,  # Available players list
+                    ""  # Clear the input
+                )
+            else:
+                return (
+                    output_text,  # Regular output
+                    gr.update(visible=False),  # Hide draft controls
+                    gr.update(visible=False),  # Hide available players
+                    "",  # Clear available list
+                    ""  # Clear the input
+                )
+        
+        # Run multi-agent demo with control visibility handling
+        def run_and_check():
+            """Run demo and check for user turn."""
+            for output in app.run_multiagent_demo():
+                result = check_user_turn(output)
+                yield result
+        
+        run_multiagent_btn.click(
+            run_and_check,
+            None,
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            show_progress=True
+        )
+        
+        # Continue draft after user pick
+        def submit_and_continue(player_name):
+            """Submit pick and continue draft."""
+            for output in app.continue_mock_draft(player_name):
+                result = check_user_turn(output)
+                yield result
+        
+        submit_pick_btn.click(
+            submit_and_continue,
+            draft_pick_input,
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            show_progress=True
+        )
+        
+        # Also submit on enter
+        draft_pick_input.submit(
+            submit_and_continue,
+            draft_pick_input,
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            show_progress=True
+        )
+        
+        # Add custom CSS for better styling
         demo.css = """
         .gradio-container {
             max-width: 800px !important;
