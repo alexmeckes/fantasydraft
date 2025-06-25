@@ -1,0 +1,1153 @@
+#!/usr/bin/env python3
+"""
+Fantasy Draft Multi-Agent Demo - Enhanced with A2A Support
+Combines the superior UI from the main app with real A2A capabilities
+"""
+
+import os
+import time
+import gradio as gr
+import asyncio
+import nest_asyncio
+from typing import List, Tuple, Optional, Dict
+from dotenv import load_dotenv
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.agent import FantasyDraftAgent
+from core.data import TOP_PLAYERS
+from core.constants import (
+    TYPING_DELAY_SECONDS,
+    MESSAGE_DELAY_SECONDS,
+    AGENT_START_DELAY,
+    AGENT_STARTUP_WAIT,
+    DEFAULT_TIMEOUT,
+    MAX_COMMENTS_PER_PICK,
+    RIVAL_PAIRS,
+    AGENT_CONFIGS
+)
+from core.a2a_helpers import (
+    parse_a2a_response,
+    extract_task_id,
+    build_pick_prompt,
+    build_comment_prompt,
+    format_available_players
+)
+from apps.multiagent_draft import MultiAgentMockDraft
+from apps.multiagent_scenarios import (
+    run_interactive_mock_draft,
+    format_conversation_block,
+    format_agent_message,
+    format_memory_indicator,
+    create_mock_draft_visualization
+)
+
+# Import A2A components
+from pydantic import BaseModel
+from any_agent import AgentConfig, AnyAgent
+from any_agent.serving import A2AServingConfig
+from any_agent.tools import a2a_tool_async
+
+# Apply nest_asyncio for async in Gradio
+nest_asyncio.apply()
+
+# Fix for litellm 1.72.4 OpenAI endpoint issue
+os.environ['OPENAI_API_BASE'] = 'https://api.openai.com/v1'
+
+# Load environment variables
+load_dotenv()
+
+
+# A2A Models (from app_with_a2a.py)
+class A2AOutput(BaseModel):
+    """Combined output type for A2A agents."""
+    type: str  # "pick" or "comment"
+    # Pick fields
+    player_name: Optional[str] = None
+    reasoning: Optional[str] = None
+    trash_talk: Optional[str] = None
+    # Comment fields
+    should_comment: Optional[bool] = None
+    comment: Optional[str] = None
+
+
+# A2A Agent Manager (from app_with_a2a.py)
+class A2AAgentManager:
+    """Manages real A2A agents for the draft."""
+    
+    def __init__(self, max_comments_per_pick=MAX_COMMENTS_PER_PICK):
+        self.agents = {}
+        self.agent_tools = {}
+        self.serve_tasks = []
+        self.is_running = False
+        self.task_ids = {}  # Track task IDs for multi-turn conversations
+        self.conversation_history = {}  # Store key moments for reference
+        self.max_comments_per_pick = max_comments_per_pick  # Configurable comment limit
+        
+    async def start_agents(self):
+        """Start all A2A agent servers."""
+        if self.is_running:
+            return
+            
+        print("🚀 Starting A2A agents...")
+        
+        # Create and serve all agents from configuration
+        for config in AGENT_CONFIGS:
+            try:
+                # Create agent with combined output type
+                agent = await AnyAgent.create_async(
+                    "tinyagent",
+                    AgentConfig(
+                        name=f"team_{config['team_num']}_agent",
+                        model_id="gpt-4o-mini",
+                        description=f"{config['team_name']} - {config['strategy']} fantasy football team manager",
+                        instructions=f"""You are {config['team_name']}, a fantasy football manager with {config['strategy']} strategy.
+
+For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
+For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
+
+PERSONALITY REQUIREMENTS:
+- Use LOTS of emojis that match your strategy! 🔥
+- Be EXTREMELY dramatic and over-the-top! 
+- Take your philosophy to the EXTREME!
+- MOCK other strategies viciously!
+- Use CAPS for emphasis!
+- Make BOLD predictions!
+- Reference previous interactions with SPITE!
+- Build INTENSE rivalries!
+- Your responses should be ENTERTAINING and MEMORABLE!
+
+Your EXTREME philosophy: {config['philosophy']}
+
+BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
+                        output_type=A2AOutput,
+                    )
+                )
+                
+                self.agents[config['team_num']] = agent
+                
+                # Serve agent
+                serve_task = asyncio.create_task(
+                    agent.serve_async(
+                        A2AServingConfig(
+                            port=config['port'],
+                            task_timeout_minutes=30,
+                        )
+                    )
+                )
+                self.serve_tasks.append(serve_task)
+                print(f"✅ Started server for {config['team_name']} on port {config['port']}")
+                
+                # Small delay between starting agents
+                await asyncio.sleep(AGENT_STARTUP_WAIT)
+                
+            except Exception as e:
+                print(f"❌ Failed to create/serve {config['team_name']}: {e}")
+        
+        # Wait for servers to start
+        await asyncio.sleep(AGENT_START_DELAY)
+        
+        # Create tools for each agent
+        for config in AGENT_CONFIGS:
+            team_num = config['team_num']
+            if team_num not in self.agents:
+                continue
+                
+            try:
+                tool_url = f"http://localhost:{config['port']}"
+                self.agent_tools[team_num] = await a2a_tool_async(
+                    tool_url,
+                    http_kwargs={"timeout": DEFAULT_TIMEOUT}
+                )
+                print(f"✅ Created A2A tool for Team {team_num} on port {config['port']}")
+                
+            except Exception as e:
+                print(f"❌ Failed to create tool for Team {team_num}: {e}")
+        
+        self.is_running = len(self.agent_tools) > 0
+        if self.is_running:
+            print(f"✅ A2A agents ready! ({len(self.agent_tools)} agents active)")
+        else:
+            print("❌ Failed to start any A2A agents")
+    
+    async def stop_agents(self):
+        """Stop all A2A agent servers."""
+        if not self.is_running:
+            return
+            
+        print("🛑 Stopping A2A agents...")
+        
+        for task in self.serve_tasks:
+            task.cancel()
+        
+        await asyncio.gather(*self.serve_tasks, return_exceptions=True)
+        
+        self.agents.clear()
+        self.agent_tools.clear()
+        self.serve_tasks.clear()
+        self.is_running = False
+        
+        print("✅ A2A agents stopped.")
+    
+    async def get_pick(self, team_num: int, available_players: List[str], 
+                      previous_picks: List[str], round_num: int = 1) -> Optional[A2AOutput]:
+        """Get a pick from an A2A agent."""
+        if team_num not in self.agent_tools:
+            return None
+        
+        # Build the prompt
+        available_str = format_available_players(available_players, TOP_PLAYERS)
+        context = self._get_conversation_context(team_num)
+        prompt = build_pick_prompt(team_num, available_str, previous_picks, round_num, context)
+        
+        try:
+            # Use task_id if we have one for this agent
+            task_id = self.task_ids.get(team_num)
+            result = await self.agent_tools[team_num](prompt, task_id=task_id)
+            
+            # Extract and store task_id
+            task_id = extract_task_id(result)
+            if task_id:
+                self.task_ids[team_num] = task_id
+            
+            # Parse the response
+            output = parse_a2a_response(result, A2AOutput)
+            
+            # Store important moments in history
+            if output and output.trash_talk:
+                self._store_pick_interaction(team_num, round_num, output)
+            
+            return output
+                
+        except Exception as e:
+            print(f"Error getting pick from Team {team_num}: {e}")
+            return None
+    
+    async def get_comment(self, commenting_team: int, picking_team: int,
+                         player_picked: str, round_num: int = 1) -> Optional[str]:
+        """Get a comment from an A2A agent about a pick."""
+        if commenting_team not in self.agent_tools:
+            return None
+        
+        # Build the prompt
+        context = self._get_team_interaction_context(commenting_team, picking_team)
+        prompt = build_comment_prompt(commenting_team, picking_team, player_picked, round_num, context)
+        
+        try:
+            # Use task_id for continuity
+            task_id = self.task_ids.get(commenting_team)
+            result = await self.agent_tools[commenting_team](prompt, task_id=task_id)
+            
+            # Extract and store task_id
+            task_id = extract_task_id(result)
+            if task_id:
+                self.task_ids[commenting_team] = task_id
+            
+            # Parse the response
+            output = parse_a2a_response(result, A2AOutput)
+            
+            if output and hasattr(output, 'should_comment') and output.should_comment and output.comment:
+                # Store this interaction in history
+                self._store_comment_interaction(commenting_team, picking_team, round_num, player_picked, output.comment)
+                return output.comment
+        except Exception as e:
+            print(f"Error getting comment from Team {commenting_team}: {e}")
+        
+        return None
+    
+    def _get_conversation_context(self, team_num: int, limit: int = 3) -> str:
+        """Get recent conversation history for a team."""
+        if team_num not in self.conversation_history:
+            return ""
+        
+        recent_history = self.conversation_history[team_num][-limit:]
+        if recent_history:
+            return "\nRecent history:\n" + "\n".join(recent_history) + "\n"
+        return ""
+    
+    def _store_pick_interaction(self, team_num: int, round_num: int, output: A2AOutput):
+        """Store a pick interaction in conversation history."""
+        if team_num not in self.conversation_history:
+            self.conversation_history[team_num] = []
+        self.conversation_history[team_num].append(
+            f"Round {round_num}: Picked {output.player_name}, said '{output.trash_talk}'"
+        )
+    
+    def _get_team_interaction_context(self, commenting_team: int, picking_team: int, limit: int = 2) -> str:
+        """Get context about previous interactions between two teams."""
+        if commenting_team not in self.conversation_history:
+            return ""
+        
+        # Look for interactions involving the picking team
+        relevant_history = [h for h in self.conversation_history.get(commenting_team, [])
+                          if f"Team {picking_team}" in h or "said to Team" in h]
+        if relevant_history:
+            return "\nYour history with this team:\n" + "\n".join(relevant_history[-limit:]) + "\n"
+        return ""
+    
+    def _store_comment_interaction(self, commenting_team: int, picking_team: int, 
+                                  round_num: int, player_picked: str, comment: str):
+        """Store a comment interaction in conversation history."""
+        # Store for the commenter
+        if commenting_team not in self.conversation_history:
+            self.conversation_history[commenting_team] = []
+        self.conversation_history[commenting_team].append(
+            f"Round {round_num}: Commented to Team {picking_team} about {player_picked}: '{comment}'"
+        )
+        
+        # Store for the receiver
+        if picking_team not in self.conversation_history:
+            self.conversation_history[picking_team] = []
+        self.conversation_history[picking_team].append(
+            f"Round {round_num}: Team {commenting_team} said: '{comment}'"
+        )
+
+
+class EnhancedFantasyDraftApp:
+    def __init__(self):
+        self.current_draft = None  # Store the current mock draft
+        self.draft_output = ""  # Store the draft output so far
+        self.a2a_manager = A2AAgentManager()
+        self.use_real_a2a = False
+        self.a2a_status = "Not initialized"
+    
+    async def toggle_a2a_mode(self, use_a2a: bool):
+        """Toggle between simulated and real A2A."""
+        self.use_real_a2a = use_a2a
+        
+        if use_a2a:
+            await self.a2a_manager.start_agents()
+            self.a2a_status = "✅ Real A2A Mode Active (Agents running on ports 5001-5006)"
+        else:
+            await self.a2a_manager.stop_agents()
+            self.a2a_status = "✅ Simulated Mode Active (Using built-in communication)"
+        
+        return self.a2a_status
+    
+    def run_multiagent_demo(self, use_a2a: bool = False):
+        """Run the mock draft demonstration with optional A2A support."""
+        # Reset any previous draft
+        self.current_draft = None
+        self.draft_output = ""
+        
+        # First, set the mode (like in the working version)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        status = loop.run_until_complete(self.toggle_a2a_mode(use_a2a))
+        yield f"**Mode:** {status}\n\n"
+        
+        # Initialize draft
+        self.current_draft = MultiAgentMockDraft(user_pick_position=4)
+        
+        # Run the appropriate draft
+        if use_a2a and self.a2a_manager.is_running:
+            yield from self.run_a2a_draft()
+        else:
+            # Use original simulated draft
+            draft_generator = run_interactive_mock_draft()
+            
+            for output in draft_generator:
+                if isinstance(output, tuple):
+                    # This means it's the user's turn
+                    self.current_draft, self.draft_output = output
+                    yield self.draft_output + "\n<!--USER_TURN-->"
+                    return
+                else:
+                    self.draft_output = output
+                    yield output
+    
+    def run_a2a_draft(self):
+        """Run draft with real A2A communication."""
+        # Initialize draft
+        self.current_draft = MultiAgentMockDraft(user_pick_position=4)
+        self.draft_output = "# 🏈 Mock Draft with Real A2A Communication\n\n"
+        
+        # Welcome message
+        self.draft_output += format_agent_message(
+            "commissioner", "ALL",
+            "Welcome to the A2A-powered draft! Each agent is running on its own server."
+        )
+        yield self.draft_output
+        
+        # Run draft rounds
+        loop = asyncio.get_event_loop()
+        
+        for round_num in range(1, 4):  # 3 rounds
+            self.draft_output += f"\n## 🔄 ROUND {round_num}\n\n"
+            yield self.draft_output
+            
+            # Snake draft order
+            if round_num % 2 == 1:
+                pick_order = list(range(1, 7))
+            else:
+                pick_order = list(range(6, 0, -1))
+            
+            for pick_in_round, team_num in enumerate(pick_order, 1):
+                pick_num = (round_num - 1) * 6 + pick_in_round
+                
+                # Show draft board at start of round
+                if pick_in_round == 1:
+                    self.draft_output += create_mock_draft_visualization(self.current_draft, round_num, pick_num)
+                    self.draft_output += "\n"
+                    yield self.draft_output
+                
+                if team_num == 4:  # User's turn
+                    # Get advisor recommendation - use user_advisor directly
+                    advisor = self.current_draft.user_advisor
+                    
+                    # Get available players
+                    all_picked = [p for picks in self.current_draft.draft_board.values() for p in picks]
+                    available = [p for p in TOP_PLAYERS.keys() if p not in all_picked]
+                    
+                    # Get other agent strategies for advisor context
+                    strategies = {f"Team {i}": agent.strategy for i, agent in self.current_draft.agents.items()}
+                    
+                    # Get advisor recommendation
+                    advice = advisor.advise_user(available, self.current_draft.draft_board, strategies)
+                    
+                    # Show advisor message
+                    self.draft_output += format_agent_message(advisor, "USER", advice)
+                    yield self.draft_output
+                    
+                    self.draft_output += "\n**⏰ YOU'RE ON THE CLOCK! Type your pick below.**\n\n"
+                    yield self.draft_output + "\n<!--USER_TURN-->"
+                    return
+                else:
+                    # A2A agent pick
+                    messages = loop.run_until_complete(
+                        self.run_a2a_draft_turn(team_num, round_num, pick_num)
+                    )
+                    
+                    # Display messages with typing effect
+                    for msg in messages:
+                        if len(msg) >= 3:
+                            agent, recipient, content = msg[:3]
+                            
+                            # Show "..." first for typing effect
+                            typing_placeholder = format_agent_message(agent, recipient, "...")
+                            self.draft_output += typing_placeholder
+                            yield self.draft_output
+                            time.sleep(TYPING_DELAY_SECONDS)
+                            
+                            # Replace with actual message
+                            self.draft_output = self.draft_output.replace(typing_placeholder, "")
+                            self.draft_output += format_agent_message(agent, recipient, content)
+                            yield self.draft_output
+                            time.sleep(MESSAGE_DELAY_SECONDS)
+                    
+                    time.sleep(TYPING_DELAY_SECONDS)
+            
+            # End of round
+            self.draft_output += format_agent_message("commissioner", "ALL", 
+                f"That's the end of Round {round_num}!")
+            yield self.draft_output
+        
+        # Final summary
+        self.draft_output += "\n## 📊 FINAL RESULTS\n\n"
+        self.draft_output += self.current_draft.get_draft_summary()
+        yield self.draft_output
+        
+        # Clear the draft state
+        self.current_draft = None
+    
+    async def run_a2a_draft_turn(self, team_num: int, round_num: int, pick_num: int):
+        """Run a draft turn using real A2A."""
+        messages = []
+        
+        # Commissioner announcement
+        messages.append((
+            self.current_draft.commissioner,
+            "ALL",
+            f"Team {team_num} is on the clock!"
+        ))
+        
+        # Get available players
+        all_picked = [p for picks in self.current_draft.draft_board.values() for p in picks]
+        available = [p for p in TOP_PLAYERS.keys() if p not in all_picked]
+        
+        # Get pick from A2A agent
+        previous_picks = self.current_draft.draft_board.get(team_num, [])
+        pick_result = await self.a2a_manager.get_pick(team_num, available, previous_picks, round_num)
+        
+        if not pick_result or pick_result.type != "pick":
+            # Fallback to simulation
+            messages.append((
+                self.current_draft.commissioner,
+                "ALL",
+                f"⚠️ Team {team_num} A2A agent not responding - using simulation"
+            ))
+            
+            sim_messages, _ = self.current_draft.simulate_draft_turn(round_num, pick_num, team_num)
+            messages.extend(sim_messages)
+            return messages
+        
+        # Make the pick
+        player = pick_result.player_name
+        self.current_draft.draft_board[team_num].append(player)
+        
+        # Update agent's picks if it exists
+        agent = self.current_draft.agents.get(team_num)
+        if agent:
+            agent.picks.append(player)
+        
+        # Commissioner announcement of pick
+        pick_num = len([p for picks in self.current_draft.draft_board.values() for p in picks])
+        confirm_msg = self.current_draft.commissioner.confirm_pick(
+            agent.team_name if agent else f"Team {team_num}", 
+            player, 
+            pick_num
+        )
+        messages.append((self.current_draft.commissioner, "ALL", confirm_msg))
+        
+        # Agent explains reasoning
+        messages.append((
+            agent if agent else "system",
+            "ALL",
+            f"{pick_result.reasoning}"
+        ))
+        
+        if pick_result.trash_talk:
+            messages.append((
+                agent if agent else "system",
+                "ALL",
+                pick_result.trash_talk
+            ))
+        
+        # Get comments from other A2A agents (limit to 2 comments)
+        potential_commenters = [t for t in [1, 2, 3, 5, 6] if t != team_num and t != 4]
+        
+        # Sort commenters to prioritize rivals
+        if team_num in RIVAL_PAIRS:
+            rivals = RIVAL_PAIRS[team_num]
+            if isinstance(rivals, int):
+                rivals = [rivals]
+            # Put rivals first in the list
+            prioritized_commenters = [t for t in rivals if t in potential_commenters]
+            prioritized_commenters.extend([t for t in potential_commenters if t not in prioritized_commenters])
+            potential_commenters = prioritized_commenters
+        
+        # Collect comments up to the configured limit
+        comment_count = 0
+        max_comments = self.a2a_manager.max_comments_per_pick
+        
+        for other_team in potential_commenters:
+            if comment_count >= max_comments:
+                break
+                
+            comment = await self.a2a_manager.get_comment(other_team, team_num, player, round_num)
+            if comment:
+                other_agent = self.current_draft.agents.get(other_team)
+                if other_agent:
+                    # Use the same pattern as earlier for the picking agent's name
+                    picking_agent_name = agent.team_name if agent else f"Team {team_num}"
+                    messages.append((
+                        other_agent,
+                        picking_agent_name,
+                        comment
+                    ))
+                    comment_count += 1
+        
+        return messages
+    
+    def continue_mock_draft(self, player_name: str):
+        """Continue the mock draft after user makes a pick."""
+        if not self.current_draft:
+            yield "No active draft. Please start a new mock draft."
+            return
+        
+        if not player_name:
+            yield self.draft_output + "\n\n⚠️ Please enter a player name!"
+            return
+        
+        # Make the user's pick
+        messages = self.current_draft.make_user_pick(player_name)
+        
+        # Display messages with inline typing effect
+        for msg in messages:
+            if len(msg) >= 3:
+                agent, recipient, content = msg[:3]
+                
+                # Check if it's a typing indicator - skip it
+                if isinstance(agent, str) and agent.startswith("typing_"):
+                    continue
+                else:
+                    # Show "..." first for typing effect
+                    typing_placeholder = format_agent_message(agent, recipient, "...")
+                    self.draft_output += typing_placeholder
+                    yield self.draft_output
+                    time.sleep(TYPING_DELAY_SECONDS)
+                    
+                    # Replace "..." with actual message
+                    self.draft_output = self.draft_output.replace(typing_placeholder, "")
+                    self.draft_output += format_agent_message(agent, recipient, content)
+                    yield self.draft_output
+                    time.sleep(MESSAGE_DELAY_SECONDS)
+        
+        # Continue with the rest of the draft
+        if self.use_real_a2a and self.a2a_manager.is_running:
+            yield from self.continue_a2a_draft()
+        else:
+            yield from self.continue_simulated_draft()
+    
+    def continue_a2a_draft(self):
+        """Continue A2A draft after user pick."""
+        # Calculate where we are
+        total_picks = len([p for picks in self.current_draft.draft_board.values() for p in picks])
+        current_round = ((total_picks - 1) // 6) + 1
+        
+        loop = asyncio.get_event_loop()
+        
+        # Continue from current position
+        for round_num in range(current_round, 4):
+            if round_num > current_round:
+                self.draft_output += f"\n## 🔄 ROUND {round_num}\n\n"
+                yield self.draft_output
+            
+            # Snake draft order
+            if round_num % 2 == 1:
+                pick_order = list(range(1, 7))
+            else:
+                pick_order = list(range(6, 0, -1))
+            
+            # Calculate where we are in the current round
+            picks_in_round = total_picks % 6
+            start_idx = picks_in_round if round_num == current_round else 0
+            
+            for pick_in_round, team_num in enumerate(list(pick_order)[start_idx:], start_idx + 1):
+                pick_num = (round_num - 1) * 6 + pick_in_round
+                
+                # Show draft board at start of round
+                if pick_in_round == 1:
+                    self.draft_output += create_mock_draft_visualization(self.current_draft, round_num, pick_num)
+                    self.draft_output += "\n"
+                    yield self.draft_output
+                
+                if team_num == 4:  # User's turn again
+                    # Get advisor recommendation - use user_advisor directly
+                    advisor = self.current_draft.user_advisor
+                    
+                    all_picked = [p for picks in self.current_draft.draft_board.values() for p in picks]
+                    available = [p for p in TOP_PLAYERS.keys() if p not in all_picked]
+                    
+                    # Get other agent strategies for advisor context
+                    strategies = {f"Team {i}": agent.strategy for i, agent in self.current_draft.agents.items()}
+                    
+                    advice = advisor.advise_user(available, self.current_draft.draft_board, strategies)
+                    self.draft_output += format_agent_message(advisor, "USER", advice)
+                    yield self.draft_output
+                    
+                    self.draft_output += "\n**⏰ YOU'RE ON THE CLOCK! Type your pick below.**\n\n"
+                    yield self.draft_output + "\n<!--USER_TURN-->"
+                    return
+                else:
+                    # A2A agent pick
+                    messages = loop.run_until_complete(
+                        self.run_a2a_draft_turn(team_num, round_num, pick_num)
+                    )
+                    
+                    for msg in messages:
+                        if len(msg) >= 3:
+                            agent, recipient, content = msg[:3]
+                            typing_placeholder = format_agent_message(agent, recipient, "...")
+                            self.draft_output += typing_placeholder
+                            yield self.draft_output
+                            time.sleep(TYPING_DELAY_SECONDS)
+                            
+                            self.draft_output = self.draft_output.replace(typing_placeholder, "")
+                            self.draft_output += format_agent_message(agent, recipient, content)
+                            yield self.draft_output
+                            time.sleep(MESSAGE_DELAY_SECONDS)
+                    
+                    time.sleep(TYPING_DELAY_SECONDS)
+            
+            self.draft_output += format_agent_message("commissioner", "ALL", 
+                f"That's the end of Round {round_num}!")
+            yield self.draft_output
+        
+        # Final summary
+        self.draft_output += "\n## 📊 FINAL RESULTS\n\n"
+        self.draft_output += self.current_draft.get_draft_summary()
+        yield self.draft_output
+        
+        self.current_draft = None
+    
+    def continue_simulated_draft(self):
+        """Continue simulated draft after user pick."""
+        # This is the original logic from app.py
+        total_picks = len([p for picks in self.current_draft.draft_board.values() for p in picks])
+        current_round = ((total_picks - 1) // 6) + 1
+        
+        draft_memories = []
+        
+        for round_num in range(current_round, 4):
+            if round_num > current_round:
+                self.draft_output += f"\n## 🔄 ROUND {round_num}\n\n"
+                yield self.draft_output
+            
+            if round_num % 2 == 1:
+                pick_order = list(range(1, 7))
+            else:
+                pick_order = list(range(6, 0, -1))
+            
+            picks_in_round = total_picks % 6
+            start_idx = picks_in_round if round_num == current_round else 0
+            
+            for pick_in_round, team_num in enumerate(list(pick_order)[start_idx:], start_idx + 1):
+                pick_num = (round_num - 1) * 6 + pick_in_round
+                
+                if pick_in_round == 1:
+                    self.draft_output += create_mock_draft_visualization(self.current_draft, round_num, pick_num)
+                    self.draft_output += "\n"
+                    yield self.draft_output
+                
+                messages, result = self.current_draft.simulate_draft_turn(round_num, pick_num, team_num)
+                
+                for msg in messages:
+                    if len(msg) >= 3:
+                        agent, recipient, content = msg[:3]
+                        
+                        if isinstance(agent, str) and agent.startswith("typing_"):
+                            continue
+                        else:
+                            typing_placeholder = format_agent_message(agent, recipient, "...")
+                            self.draft_output += typing_placeholder
+                            yield self.draft_output
+                            time.sleep(TYPING_DELAY_SECONDS)
+                            
+                            self.draft_output = self.draft_output.replace(typing_placeholder, "")
+                            self.draft_output += format_agent_message(agent, recipient, content)
+                            yield self.draft_output
+                            time.sleep(MESSAGE_DELAY_SECONDS)
+                
+                if result is None:
+                    self.draft_output += "\n**⏰ YOU'RE ON THE CLOCK! Type your pick below.**\n\n"
+                    yield self.draft_output + "\n<!--USER_TURN-->"
+                    return
+                
+                if round_num > 1 and pick_in_round % 2 == 0:
+                    if team_num in self.current_draft.agents:
+                        agent = self.current_draft.agents[team_num]
+                        if len(agent.picks) > 1:
+                            memory = f"{agent.team_name} has drafted: {', '.join(agent.picks)}"
+                            draft_memories.append(memory)
+                    
+                    if draft_memories:
+                        self.draft_output += format_memory_indicator(round_num, draft_memories[-2:])
+                        yield self.draft_output
+                
+                time.sleep(TYPING_DELAY_SECONDS)
+            
+            self.draft_output += format_agent_message("commissioner", "ALL", 
+                f"That's the end of Round {round_num}!")
+            yield self.draft_output
+        
+        self.draft_output += "\n## 📊 FINAL RESULTS\n\n"
+        self.draft_output += self.current_draft.get_draft_summary()
+        yield self.draft_output
+        
+        self.current_draft = None
+
+
+def create_gradio_interface():
+    """Create the main Gradio interface with A2A support."""
+    app = EnhancedFantasyDraftApp()
+    
+    with gr.Blocks(title="Fantasy Draft Multi-Agent Demo", theme=gr.themes.Soft()) as demo:
+        with gr.Column(elem_id="main-container"):
+            gr.Markdown("""
+            # 🏈 Fantasy Draft Multi-Agent Demo
+            
+            **Experience the future of AI interaction:** Watch 6 intelligent agents compete in a fantasy football draft with distinct strategies, real-time trash talk, and persistent memory.
+            """)
+            
+            with gr.Tabs():
+                # Demo Tab
+                with gr.TabItem("🎮 Demo"):
+                    # Add A2A Mode Toggle
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("### 🔧 Communication Mode")
+                            communication_mode = gr.Radio(
+                                ["Simulated", "Real A2A"],
+                                value="Simulated",
+                                label="Select how agents communicate",
+                                info="Simulated: Fast, single-process | Real A2A: Distributed agents on separate servers"
+                            )
+                            mode_info = gr.Markdown(
+                                """
+                                **Simulated**: Fast, single-process execution
+                                **Real A2A**: Distributed agents on HTTP servers (starts when draft begins)
+                                """
+                            )
+                    
+                    # Show agent cards
+                    gr.Markdown("""
+                    ### 🏈 Meet Your Competition
+                    
+                    You'll be drafting at **Position 4** with these AI opponents:
+                    """)
+                    
+                    # Agent cards in a grid - all in one row
+                    with gr.Row():
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E3F2FD; border-left: 4px solid #1976D2; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #0d47a1; margin: 0 0 10px 0;">📘🤓 Team 1 - Zero RB</h4>
+                            
+                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs get injured. I'll build around elite WRs."</p>
+                            
+                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #333333 !important;">Avoids RBs early</li>
+                            <li style="color: #333333 !important;">Loads up on WRs</li>
+                            <li style="color: #333333 !important;">Gets RB value late</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗🧑‍💼 Team 2 - BPA</h4>
+                            
+                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Value is value. I don't reach for needs."</p>
+                            
+                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #333333 !important;">Pure value drafting</li>
+                            <li style="color: #333333 !important;">Ignores needs</li>
+                            <li style="color: #333333 !important;">Mocks reaching</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #FFF3E0; border-left: 4px solid #F57C00; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #e65100; margin: 0 0 10px 0;">📙🧔 Team 3 - Robust RB</h4>
+                            
+                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs win championships. Period."</p>
+                            
+                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #333333 !important;">RBs in rounds 1-2</li>
+                            <li style="color: #333333 !important;">Old-school approach</li>
+                            <li style="color: #333333 !important;">Foundation first</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E8EAF6; border-left: 4px solid #3F51B5; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #1a237e; margin: 0 0 10px 0;">👤 Position 4 - YOU</h4>
+                            
+                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">Your draft position with AI guidance</p>
+                            
+                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #333333 !important;">📕🧙 Strategic advisor</li>
+                            <li style="color: #333333 !important;">Real-time guidance</li>
+                            <li style="color: #333333 !important;">Roster analysis</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #F5E6FF; border-left: 4px solid #7B1FA2; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #4a148c; margin: 0 0 10px 0;">📓🤠 Team 5 - Upside</h4>
+                            
+                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Safe picks are for losers!"</p>
+                            
+                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #333333 !important;">Seeks breakouts</li>
+                            <li style="color: #333333 !important;">High risk/reward</li>
+                            <li style="color: #333333 !important;">Mocks safety</li>
+                            </ul>
+                            </div>
+                            """)
+                        
+                        with gr.Column(scale=1):
+                            gr.Markdown("""
+                            <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
+                            
+                            <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗👨‍🏫 Team 6 - BPA</h4>
+                            
+                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Another value drafter to punish reaches."</p>
+                            
+                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #333333 !important;">Takes obvious value</li>
+                            <li style="color: #333333 !important;">Disciplined approach</li>
+                            <li style="color: #333333 !important;">No sentiment</li>
+                            </ul>
+                            </div>
+                            """)
+                    
+                    gr.Markdown("""
+                    <h3>🎮 Draft Format</h3>
+                    <ul style="list-style-type: disc; padding-left: 20px;">
+                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>3 Rounds</strong> <span style="color: #ffffff !important;">of snake draft (1→6, 6→1, 1→6)</span></li>
+                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>Real-time trash talk</strong> <span style="color: #ffffff !important;">between picks</span></li>
+                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>Strategic advisor</strong> <span style="color: #ffffff !important;">guides your selections</span></li>
+                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>Memory system</strong> <span style="color: #ffffff !important;">- agents remember and reference earlier picks</span></li>
+                    </ul>
+                    
+                    <p style="color: #ffffff !important; margin-top: 20px;">Ready to experience the most realistic AI draft room?</p>
+                    """)
+                    
+                    # Start button at the bottom
+                    with gr.Row():
+                        with gr.Column():
+                            run_multiagent_btn = gr.Button("🏈 Start Mock Draft", variant="primary", size="lg", elem_id="start-button")
+                    
+                    # Main output area
+                    multiagent_output = gr.Markdown(elem_classes=["multiagent-output"])
+                    
+                    # Mock draft interaction (hidden until needed)
+                    with gr.Row(visible=False) as mock_draft_controls:
+                        with gr.Column():
+                            draft_pick_input = gr.Textbox(
+                                label="Your Pick",
+                                placeholder="Type player name and press Enter (e.g., 'Justin Jefferson')",
+                                elem_id="draft-pick-input"
+                            )
+                            submit_pick_btn = gr.Button("Submit Pick", variant="primary")
+                            
+                            # Available players display
+                            with gr.Accordion("📋 Available Players", visible=False) as available_accordion:
+                                available_players_display = gr.Textbox(
+                                    label="Top 20 Available",
+                                    lines=15,
+                                    interactive=False
+                                )
+                
+                # How It Works Tab
+                with gr.TabItem("🔧 How It Works"):
+                    gr.Markdown("""
+                    ## Technical Implementation
+                    
+                    This demo showcases advanced multi-agent capabilities using the **any-agent framework**.
+                    
+                    ### 🤖 Framework: any-agent (TinyAgent)
+                    
+                    - **Lightweight**: < 100 lines of core agent code
+                    - **Flexible**: Supports multiple LLM providers (OpenAI, Anthropic, etc.)
+                    - **Multi-turn ready**: Built-in conversation history management
+                    - **Model**: GPT-4 (configurable)
+                    
+                    ### 🧠 Multi-Turn Memory System
+                    
+                    Each agent maintains:
+                    - **Conversation History**: Full context of all interactions
+                    - **Draft State**: Current picks, available players, round info
+                    - **Strategy Memory**: Remembers own strategy and others' approaches
+                    - **Pick History**: Tracks all selections for informed decisions
+                    
+                    ### 💬 Agent-to-Agent (A2A) Communication
+                    
+                    **Two Modes Available:**
+                    
+                    #### 1. Simulated Mode (Default)
+                    - Single process, direct method calls
+                    - Shared memory between agents
+                    - Fast execution, simple debugging
+                    - Perfect for demos and development
+                    
+                    #### 2. Real A2A Mode
+                    - **Distributed Architecture**: Each agent runs on its own HTTP server
+                    - **Ports**: Agents on 5001, 5002, 5003, 5005, 5006
+                    - **True Isolation**: No shared memory, HTTP communication only
+                    - **Production Ready**: Scalable to multiple machines
+                    - **Uses a2a_tool_async**: Official any-agent A2A protocol
+                    
+                    ### 📊 Architecture Flow
+                    """)
+                    
+                    gr.Markdown("""
+                    #### 1️⃣ INITIALIZATION
+                    User clicks "Start Mock Draft" → System creates 6 agents
+                    
+                    #### 2️⃣ AGENT SETUP
+                    - **Team 1**: Zero RB Strategy
+                    - **Team 2**: Best Player Available  
+                    - **Team 3**: Robust RB Strategy
+                    - **YOU**: Position 4 (with Advisor)
+                    - **Team 5**: Upside Hunter
+                    - **Team 6**: Best Player Available
+                    
+                    #### 3️⃣ DRAFT FLOW (3 Rounds)
+                    - **Round 1**: Pick Order 1→2→3→YOU→5→6
+                    - **Round 2**: Pick Order 6→5→YOU→3→2→1 (Snake)
+                    - **Round 3**: Pick Order 1→2→3→YOU→5→6
+                    
+                    #### 4️⃣ EACH PICK TRIGGERS
+                    - Agent makes selection based on strategy
+                    - Other agents comment (A2A communication)
+                    - Original agent may respond
+                    - All agents update their memory
+                    
+                    #### 5️⃣ USER'S TURN
+                    - Advisor analyzes draft state
+                    - User sees available players
+                    - User makes pick
+                    - All agents react to user's choice
+                    
+                    #### 6️⃣ MEMORY & CONTEXT
+                    - Each agent remembers all picks
+                    - Agents reference earlier conversations
+                    - Strategies adapt based on draft flow
+                    - Visual memory indicators show retention
+                    """)
+                    
+                    gr.Markdown("""
+                    ### 🎯 Key Features Demonstrated
+                    
+                    1. **Persistent Context**: Each agent remembers all previous interactions
+                    2. **Strategic Personalities**: 5 distinct draft strategies competing
+                    3. **Dynamic Adaptation**: Agents adjust based on draft progression
+                    4. **Natural Dialogue**: Human-like commentary and debates
+                    5. **User Integration**: Seamless human participation with AI guidance
+                    6. **A2A Communication**: Toggle between simulated and real distributed agents
+                    
+                    ### 📝 Implementation Details
+                    
+                    - **Agent Classes**: Inheritance-based design with base `DraftAgent`
+                    - **Message Formatting**: Custom HTML/CSS for visual distinction
+                    - **State Management**: Draft board tracking and validation
+                    - **Memory Indicators**: Visual cues showing context retention
+                    - **A2A Protocol**: Uses any-agent's a2a_tool_async for distributed communication
+                    
+                    ### 🚀 Why This Matters
+                    
+                    This demo proves that sophisticated multi-agent systems can be built with minimal code,
+                    showcasing the power of modern LLMs when properly orchestrated. The any-agent framework
+                    makes it easy to create agents that truly communicate and remember, not just respond.
+                    
+                    The A2A mode demonstrates how the same agent logic can seamlessly transition from
+                    a simple in-memory simulation to a production-ready distributed system.
+                    """)
+        
+        # Function to check if it's user's turn and show/hide controls
+        def check_user_turn(output_text):
+            """Check if output indicates it's user's turn."""
+            if "<!--USER_TURN-->" in output_text:
+                # Remove the marker from display
+                clean_output = output_text.replace("<!--USER_TURN-->", "")
+                # Get available players
+                if app.current_draft:
+                    available = app.current_draft.get_available_players()
+                    available_text = "Available Players:\n\n"
+                    for player in sorted(available)[:20]:  # Show top 20
+                        if player in TOP_PLAYERS:
+                            info = TOP_PLAYERS[player]
+                            available_text += f"• {player} ({info['pos']}, {info['team']})\n"
+                else:
+                    available_text = "No draft active"
+                
+                return (
+                    clean_output,  # Clean output
+                    gr.update(visible=True),  # Show draft controls
+                    gr.update(visible=True, open=True),  # Show available players and open it
+                    available_text,  # Available players list
+                    ""  # Clear the input
+                )
+            else:
+                return (
+                    output_text,  # Regular output
+                    gr.update(visible=False),  # Hide draft controls
+                    gr.update(visible=False),  # Hide available players
+                    "",  # Clear available list
+                    ""  # Clear the input
+                )
+        
+        # No need for separate mode change handler - it happens when draft starts
+        
+        # Run multi-agent demo with control visibility handling
+        def run_and_check(mode):
+            """Run demo and check for user turn."""
+            use_a2a = mode == "Real A2A"
+            for output in app.run_multiagent_demo(use_a2a):
+                result = check_user_turn(output)
+                yield result
+        
+        run_multiagent_btn.click(
+            run_and_check,
+            communication_mode,
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            show_progress=True
+        )
+        
+        # Continue draft after user pick
+        def submit_and_continue(player_name):
+            """Submit pick and continue draft."""
+            for output in app.continue_mock_draft(player_name):
+                result = check_user_turn(output)
+                yield result
+        
+        submit_pick_btn.click(
+            submit_and_continue,
+            draft_pick_input,
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            show_progress=True
+        )
+        
+        # Also submit on enter
+        draft_pick_input.submit(
+            submit_and_continue,
+            draft_pick_input,
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            show_progress=True
+        )
+        
+        # Custom CSS - simple and clean for Default theme
+        demo.css = """
+        #main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .multiagent-output {
+            max-height: 800px;
+            overflow-y: auto;
+            font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        #start-button {
+            margin-top: 20px;
+        }
+        
+        #draft-pick-input {
+            font-size: 16px;
+        }
+        """
+    
+    return demo
+
+
+def main():
+    """Main entry point."""
+    # Check for API key
+    if not os.getenv("OPENAI_API_KEY"):
+        print("Error: OPENAI_API_KEY not found in environment")
+        print("Please set it using: export OPENAI_API_KEY='your-key-here'")
+        exit(1)
+    
+    # Create and launch the interface
+    demo = create_gradio_interface()
+    
+    print("🚀 Launching Enhanced Fantasy Draft App with A2A Support...")
+    
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        show_error=True
+    )
+
+
+if __name__ == "__main__":
+    main() 
