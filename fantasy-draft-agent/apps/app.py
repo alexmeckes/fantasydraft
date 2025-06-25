@@ -9,10 +9,14 @@ import time
 import gradio as gr
 from typing import List, Tuple
 from dotenv import load_dotenv
-from agent import FantasyDraftAgent
-from data import TOP_PLAYERS
-from multiagent_draft import MultiAgentMockDraft
-from multiagent_scenarios import (
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.agent import FantasyDraftAgent
+from core.data import TOP_PLAYERS
+from apps.multiagent_draft import MultiAgentMockDraft
+from apps.multiagent_scenarios import (
     run_interactive_mock_draft,
     format_conversation_block,
     format_agent_message,
@@ -35,9 +39,6 @@ class FantasyDraftApp:
     
     def run_multiagent_demo(self):
         """Run the mock draft demonstration."""
-        # Run the interactive mock draft
-        from multiagent_scenarios import run_interactive_mock_draft
-        
         # Reset any previous draft
         self.current_draft = None
         self.draft_output = ""

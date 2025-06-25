@@ -72,11 +72,14 @@ def launch_app():
     
     # Try to import and run the app
     try:
-        from app import main
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from apps.app import main
         main()
     except Exception as e:
         print(f"\n❌ Error launching app: {e}")
-        print("\nTry running directly: python app.py")
+        print("\nTry running directly: python apps/app.py")
         sys.exit(1)
 
 

@@ -7,7 +7,7 @@ import os
 from typing import List, Dict, Optional, Annotated
 from dotenv import load_dotenv
 from any_agent import AnyAgent, AgentConfig
-from data import TOP_PLAYERS, get_player_info, get_best_available, get_players_by_position
+from .data import TOP_PLAYERS, get_player_info, get_best_available, get_players_by_position
 
 # Load environment variables from .env file
 load_dotenv()

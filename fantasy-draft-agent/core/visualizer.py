@@ -4,7 +4,7 @@ Creates ASCII and simple text visualizations for player cards and draft boards.
 """
 
 from typing import List, Dict
-from data import TOP_PLAYERS, get_player_info
+from .data import TOP_PLAYERS, get_player_info
 
 
 def create_player_card(player_name: str) -> str:

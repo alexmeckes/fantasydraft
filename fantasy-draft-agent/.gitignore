@@ -30,4 +30,13 @@ scenario_*_transcript.md
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb 
+*.ipynb
+
+# Gradio cache
+.gradio/
+
+# Test files
+test_*.py
+
+# Deployment prep
+prepare_for_deployment.py 

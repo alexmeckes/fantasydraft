@@ -3,7 +3,7 @@ Pre-crafted demo scenarios for Fantasy Draft Agent.
 Each scenario showcases different multi-turn conversation capabilities.
 """
 
-from agent import FantasyDraftAgent
+from .agent import FantasyDraftAgent
 from typing import List, Dict
 
 

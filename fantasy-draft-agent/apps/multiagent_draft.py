@@ -6,9 +6,17 @@ Demonstrates A2A communication and multi-turn memory
 
 import time
 from typing import Dict, List, Tuple, Optional
-from agent import FantasyDraftAgent
-from data import TOP_PLAYERS, get_best_available, get_players_by_position
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.agent import FantasyDraftAgent
+from core.data import TOP_PLAYERS, get_best_available, get_players_by_position
 import random
+
+# Enhanced agents not available in the reorganized structure
+USE_ENHANCED = False
+print("📝 Using standard agents")
 
 
 class DraftAgent:
@@ -455,18 +463,21 @@ class MultiAgentMockDraft:
             5: UpsideAgent("Team 5")
         }
         
+        # Add Team 6 as BPA if it's not the user position
+        if 6 != user_pick_position:
+            self.agents[6] = BPAAgent("Team 6")
+            self.agents[6].person_emoji = "👨‍🏫"  # Professor, methodical
+        
         self.user_position = user_pick_position
         self.user_advisor = UserAdvisorAgent()
         self.commissioner = CommissionerAgent()
         
         # Draft state
-        self.draft_board = {i: [] for i in range(1, 7) if i != user_pick_position}
-        self.draft_board[user_pick_position] = []  # User's picks
+        self.draft_board = {i: [] for i in range(1, 7)}  # All 6 teams
         
-        # Add Team 6 as an AI agent since user is at position 4
-        if 6 not in self.agents and user_pick_position != 6:
-            self.agents[6] = BPAAgent("Team 6")
-            self.agents[6].person_emoji = "👨‍🏫"  # Professor, methodical
+        # Give all agents access to the draft board
+        for agent in self.agents.values():
+            agent.draft_board = self.draft_board
         
         self.all_picks = []
         
@@ -630,6 +641,30 @@ class MultiAgentMockDraft:
             # Agent explains pick
             messages.append((agent, "ALL", reasoning))
             
+            # Enhanced features: sometimes add emoji storms and meta commentary
+            if USE_ENHANCED and hasattr(agent, 'generate_emoji_storm'):
+                # Controversial picks get emoji reactions
+                if self.is_pick_controversial(player, pick_num) and random.random() > 0.6:
+                    # Random agent drops emoji bomb
+                    reactor = random.choice(list(self.agents.values()))
+                    if reactor != agent:  # Don't react to yourself
+                        player_adp = TOP_PLAYERS.get(player, {}).get('adp', 100)
+                        emoji_storm = reactor.generate_emoji_storm("bad_pick" if pick_num < player_adp else "great_pick")
+                        messages.append((reactor, "ALL", emoji_storm))
+                
+                # Meta commentary occasionally
+                if pick_num % 10 == 0 and random.random() > 0.7:
+                    meta_agent = random.choice(list(self.agents.values()))
+                    meta_comments = [
+                        "Is anyone else's algorithm telling them to be meaner? 🤖",
+                        "Why do I always end up in the most toxic draft rooms? 😅",
+                        "USER, PLEASE don't take my sleeper at pick 4 🙏",
+                        "This draft chat gonna end up on r/fantasyfootball 📸",
+                        "The disrespect in this room is ASTRONOMICAL 💀",
+                        "I can't wait to screenshot this for the group chat later 📱"
+                    ]
+                    messages.append((meta_agent, "ALL", random.choice(meta_comments)))
+            
             # Select 2-3 agents to comment
             if player in TOP_PLAYERS:
                 player_info = TOP_PLAYERS[player]
@@ -653,8 +688,9 @@ class MultiAgentMockDraft:
                             agent.remember_conversation(other_agent.team_name, comment)
                             other_agent.remember_conversation(agent.team_name, f"Picked {player}")
                             
-                            # 15% chance of response (to keep flow manageable)
-                            if random.random() > 0.85:
+                            # Enhanced agents respond more often (30% vs 15%)
+                            response_chance = 0.70 if USE_ENHANCED else 0.85
+                            if random.random() > response_chance:
                                 # Typing indicator for response
                                 response_typing = (f"typing_{agent.team_name}", other_agent.team_name,
                                                  f"{agent.team_name} is typing...")

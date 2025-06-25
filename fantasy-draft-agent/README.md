@@ -71,7 +71,7 @@ See [ENV_SETUP.md](ENV_SETUP.md) for detailed instructions.
 Launch the Gradio web interface for the best experience:
 
 ```bash
-python app.py
+python apps/app.py
 ```
 
 Then open http://localhost:7860 in your browser.
@@ -88,13 +88,13 @@ The web interface includes:
 Quick demo:
 
 ```bash
-python demo.py --quick
+python demos/cli_demo.py --quick
 ```
 
 Interactive mode:
 
 ```bash
-python demo.py --interactive
+python demos/cli_demo.py --interactive
 ```
 
 Commands in interactive mode:
@@ -107,42 +107,36 @@ Commands in interactive mode:
 Run demo scenarios:
 
 ```bash
-python demo.py --scenario 1  # Run "The Opening Pick" scenario
-python demo.py --all-scenarios  # Run all scenarios
+python demos/cli_demo.py --scenario 1  # Run "The Opening Pick" scenario
+python demos/cli_demo.py --all-scenarios  # Run all scenarios
 ```
 
 ## 🎮 Running Demos
 
 ### Basic Demo
 ```bash
-python demo.py
+python demos/cli_demo.py
 ```
 
 ### Multi-Turn Demos
 ```bash
-# Standard real-time demo (with typewriter effects)
-python demo_simple_realtime.py
+# Clean multi-turn demo (recommended)
+python demos/multiturn_demo.py
 
-# Clean mode (no typewriter effects - recommended for some terminals)
-python demo_simple_realtime.py --clean
-
-# Alternative clean demo
-python demo_clean_multiturn.py
-
-# Rich visual demo (requires: pip install rich)
-python demo_realtime.py
+# Quick start helper
+python demos/quickstart.py
 ```
 
 ### Web Interface
 ```bash
-python app.py
+python apps/app.py
 # Then open http://localhost:7860
 ```
 
-### Troubleshooting
-If you see garbled output with repeated text like "I havI have theI have the 5th...", use the clean mode:
+### Quick Start
+The quickstart script will check dependencies and launch the web interface:
 ```bash
-python demo_simple_realtime.py --clean
+python demos/quickstart.py
 ```
 
 ## 📚 Demo Scenarios
@@ -156,14 +150,28 @@ python demo_simple_realtime.py --clean
 
 ```
 fantasy-draft-agent/
-├── agent.py          # Core FantasyDraftAgent class using any-agent
-├── data.py           # Static player data (top 50 players)
-├── scenarios.py      # Pre-crafted demo scenarios
-├── visualizer.py     # ASCII visualizations for demos
-├── demo.py          # Command-line interface
-├── app.py           # Gradio web interface
-├── requirements.txt  # Dependencies
-└── README.md        # This file
+├── core/                 # Core functionality
+│   ├── agent.py         # FantasyDraftAgent class using any-agent
+│   ├── data.py          # Static player data (top 50 players)
+│   ├── scenarios.py     # Pre-crafted demo scenarios
+│   └── visualizer.py    # ASCII visualizations for demos
+├── apps/                 # Application interfaces
+│   ├── app.py          # Gradio web interface
+│   ├── multiagent_draft.py     # Multi-agent mock draft
+│   └── multiagent_scenarios.py # A2A communication scenarios
+├── demos/               # Demo scripts
+│   ├── cli_demo.py     # Command-line interface
+│   ├── multiturn_demo.py # Multi-turn demonstration
+│   └── quickstart.py   # Quick start helper
+├── docs/                # Documentation
+│   ├── ENV_SETUP.md    # Environment setup guide
+│   ├── MULTIAGENT_DEMO.md # Multi-agent features
+│   └── ...             # Other documentation
+├── scripts/             # Utility scripts
+│   ├── setup.sh        # Setup script
+│   └── start_venv.sh   # Virtual environment starter
+├── requirements.txt     # Dependencies
+└── README.md           # This file
 ```
 
 ### Key Components

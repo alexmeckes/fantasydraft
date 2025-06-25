@@ -6,7 +6,11 @@ No typewriter effects to avoid terminal compatibility issues.
 """
 
 import time
-from agent import FantasyDraftAgent
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.agent import FantasyDraftAgent
 
 
 def display_turn(turn_number, user_msg, agent_response, memory_count=0):

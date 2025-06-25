@@ -4,7 +4,7 @@ Multi-Agent Scenarios and Visualization
 Provides formatted output for multi-agent interactions
 """
 
-from multiagent_draft import MultiAgentMockDraft, DraftAgent, CommissionerAgent
+from .multiagent_draft import MultiAgentMockDraft, DraftAgent, CommissionerAgent
 import time
 
 

@@ -7,9 +7,13 @@ import os
 import sys
 from typing import Dict, List
 from dotenv import load_dotenv
-from agent import FantasyDraftAgent
-from scenarios import ScenarioRunner, SCENARIOS
-from visualizer import (
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.agent import FantasyDraftAgent
+from core.scenarios import ScenarioRunner, SCENARIOS
+from core.visualizer import (
     create_player_card, 
     create_comparison_card,
     create_roster_summary,
@@ -158,7 +162,7 @@ class FantasyDraftDemo:
             print("✓ Agent responds to queries")
             
             # Test data access
-            from data import TOP_PLAYERS
+            from core.data import TOP_PLAYERS
             print(f"✓ Player database loaded ({len(TOP_PLAYERS)} players)")
             
             # Test visualization
