@@ -30,8 +30,6 @@ from core.constants import (
 from core.a2a_helpers import (
     parse_a2a_response,
     extract_task_id,
-    build_pick_prompt,
-    build_comment_prompt,
     format_available_players
 )
 from apps.multiagent_draft import MultiAgentMockDraft
@@ -82,7 +80,6 @@ class A2AAgentManager:
         self.serve_tasks = []
         self.is_running = False
         self.task_ids = {}  # Track task IDs for multi-turn conversations
-        self.conversation_history = {}  # Store key moments for reference
         self.max_comments_per_pick = max_comments_per_pick  # Configurable comment limit
         
     async def start_agents(self):
@@ -196,10 +193,18 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
         if team_num not in self.agent_tools:
             return None
         
-        # Build the prompt
+        # Build the prompt with essential info
         available_str = format_available_players(available_players, TOP_PLAYERS)
-        context = self._get_conversation_context(team_num)
-        prompt = build_pick_prompt(team_num, available_str, previous_picks, round_num, context)
+        
+        # Simple prompt - let task_id maintain conversation history
+        prompt = f"""🚨 IT'S YOUR TIME TO DOMINATE! 🚨 (Round {round_num})
+        
+Available top players: {', '.join(available_str)}
+Your roster so far: {', '.join(previous_picks) if previous_picks else 'None yet'}
+
+Make your pick and DESTROY the competition! 💪
+Output an A2AOutput with type="pick", player_name, reasoning (with emojis!), and SAVAGE trash_talk!
+Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMINANCE! 🔥"""
         
         try:
             # Use task_id if we have one for this agent
@@ -213,11 +218,6 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
             
             # Parse the response
             output = parse_a2a_response(result, A2AOutput)
-            
-            # Store important moments in history
-            if output and output.trash_talk:
-                self._store_pick_interaction(team_num, round_num, output)
-            
             return output
                 
         except Exception as e:
@@ -230,9 +230,13 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
         if commenting_team not in self.agent_tools:
             return None
         
-        # Build the prompt
-        context = self._get_team_interaction_context(commenting_team, picking_team)
-        prompt = build_comment_prompt(commenting_team, picking_team, player_picked, round_num, context)
+        # Simple prompt - let task_id maintain conversation history  
+        prompt = f"""🎯 Team {picking_team} just picked {player_picked}! 
+
+This is your chance to DESTROY them with your superior knowledge! 💥
+Should you UNLEASH your wisdom? Output an A2AOutput with type="comment", should_comment (true/false), and a DEVASTATING comment with emojis!
+If they're your RIVAL, make it PERSONAL! If they made a BAD pick, ROAST THEM! 🔥
+Use emojis to make your point UNFORGETTABLE! 😈"""
         
         try:
             # Use task_id for continuity
@@ -248,60 +252,11 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
             output = parse_a2a_response(result, A2AOutput)
             
             if output and hasattr(output, 'should_comment') and output.should_comment and output.comment:
-                # Store this interaction in history
-                self._store_comment_interaction(commenting_team, picking_team, round_num, player_picked, output.comment)
                 return output.comment
         except Exception as e:
             print(f"Error getting comment from Team {commenting_team}: {e}")
         
         return None
-    
-    def _get_conversation_context(self, team_num: int, limit: int = 3) -> str:
-        """Get recent conversation history for a team."""
-        if team_num not in self.conversation_history:
-            return ""
-        
-        recent_history = self.conversation_history[team_num][-limit:]
-        if recent_history:
-            return "\nRecent history:\n" + "\n".join(recent_history) + "\n"
-        return ""
-    
-    def _store_pick_interaction(self, team_num: int, round_num: int, output: A2AOutput):
-        """Store a pick interaction in conversation history."""
-        if team_num not in self.conversation_history:
-            self.conversation_history[team_num] = []
-        self.conversation_history[team_num].append(
-            f"Round {round_num}: Picked {output.player_name}, said '{output.trash_talk}'"
-        )
-    
-    def _get_team_interaction_context(self, commenting_team: int, picking_team: int, limit: int = 2) -> str:
-        """Get context about previous interactions between two teams."""
-        if commenting_team not in self.conversation_history:
-            return ""
-        
-        # Look for interactions involving the picking team
-        relevant_history = [h for h in self.conversation_history.get(commenting_team, [])
-                          if f"Team {picking_team}" in h or "said to Team" in h]
-        if relevant_history:
-            return "\nYour history with this team:\n" + "\n".join(relevant_history[-limit:]) + "\n"
-        return ""
-    
-    def _store_comment_interaction(self, commenting_team: int, picking_team: int, 
-                                  round_num: int, player_picked: str, comment: str):
-        """Store a comment interaction in conversation history."""
-        # Store for the commenter
-        if commenting_team not in self.conversation_history:
-            self.conversation_history[commenting_team] = []
-        self.conversation_history[commenting_team].append(
-            f"Round {round_num}: Commented to Team {picking_team} about {player_picked}: '{comment}'"
-        )
-        
-        # Store for the receiver
-        if picking_team not in self.conversation_history:
-            self.conversation_history[picking_team] = []
-        self.conversation_history[picking_team].append(
-            f"Round {round_num}: Team {commenting_team} said: '{comment}'"
-        )
 
 
 class EnhancedFantasyDraftApp:
@@ -797,12 +752,12 @@ def create_gradio_interface():
                             
                             <h4 style="color: #0d47a1; margin: 0 0 10px 0;">📘🤓 Team 1 - Zero RB</h4>
                             
-                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs get injured. I'll build around elite WRs."</p>
+                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs get injured. I'll build around elite WRs."</p>
                             
-                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #333333 !important;">Avoids RBs early</li>
-                            <li style="color: #333333 !important;">Loads up on WRs</li>
-                            <li style="color: #333333 !important;">Gets RB value late</li>
+                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #424242;">Avoids RBs early</li>
+                            <li style="color: #424242;">Loads up on WRs</li>
+                            <li style="color: #424242;">Gets RB value late</li>
                             </ul>
                             </div>
                             """)
@@ -813,12 +768,12 @@ def create_gradio_interface():
                             
                             <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗🧑‍💼 Team 2 - BPA</h4>
                             
-                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Value is value. I don't reach for needs."</p>
+                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Value is value. I don't reach for needs."</p>
                             
-                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #333333 !important;">Pure value drafting</li>
-                            <li style="color: #333333 !important;">Ignores needs</li>
-                            <li style="color: #333333 !important;">Mocks reaching</li>
+                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #424242;">Pure value drafting</li>
+                            <li style="color: #424242;">Ignores needs</li>
+                            <li style="color: #424242;">Mocks reaching</li>
                             </ul>
                             </div>
                             """)
@@ -829,12 +784,12 @@ def create_gradio_interface():
                             
                             <h4 style="color: #e65100; margin: 0 0 10px 0;">📙🧔 Team 3 - Robust RB</h4>
                             
-                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs win championships. Period."</p>
+                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs win championships. Period."</p>
                             
-                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #333333 !important;">RBs in rounds 1-2</li>
-                            <li style="color: #333333 !important;">Old-school approach</li>
-                            <li style="color: #333333 !important;">Foundation first</li>
+                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #424242;">RBs in rounds 1-2</li>
+                            <li style="color: #424242;">Old-school approach</li>
+                            <li style="color: #424242;">Foundation first</li>
                             </ul>
                             </div>
                             """)
@@ -845,12 +800,12 @@ def create_gradio_interface():
                             
                             <h4 style="color: #1a237e; margin: 0 0 10px 0;">👤 Position 4 - YOU</h4>
                             
-                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">Your draft position with AI guidance</p>
+                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">Your draft position with AI guidance</p>
                             
-                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #333333 !important;">📕🧙 Strategic advisor</li>
-                            <li style="color: #333333 !important;">Real-time guidance</li>
-                            <li style="color: #333333 !important;">Roster analysis</li>
+                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #424242;">📕🧙 Strategic advisor</li>
+                            <li style="color: #424242;">Real-time guidance</li>
+                            <li style="color: #424242;">Roster analysis</li>
                             </ul>
                             </div>
                             """)
@@ -861,12 +816,12 @@ def create_gradio_interface():
                             
                             <h4 style="color: #4a148c; margin: 0 0 10px 0;">📓🤠 Team 5 - Upside</h4>
                             
-                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Safe picks are for losers!"</p>
+                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Safe picks are for losers!"</p>
                             
-                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #333333 !important;">Seeks breakouts</li>
-                            <li style="color: #333333 !important;">High risk/reward</li>
-                            <li style="color: #333333 !important;">Mocks safety</li>
+                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #424242;">Seeks breakouts</li>
+                            <li style="color: #424242;">High risk/reward</li>
+                            <li style="color: #424242;">Mocks safety</li>
                             </ul>
                             </div>
                             """)
@@ -877,26 +832,24 @@ def create_gradio_interface():
                             
                             <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗👨‍🏫 Team 6 - BPA</h4>
                             
-                            <p style="color: #333333; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Another value drafter to punish reaches."</p>
+                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Another value drafter to punish reaches."</p>
                             
-                            <ul style="color: #333333; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #333333 !important;">Takes obvious value</li>
-                            <li style="color: #333333 !important;">Disciplined approach</li>
-                            <li style="color: #333333 !important;">No sentiment</li>
+                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                            <li style="color: #424242;">Takes obvious value</li>
+                            <li style="color: #424242;">Disciplined approach</li>
+                            <li style="color: #424242;">No sentiment</li>
                             </ul>
                             </div>
                             """)
                     
                     gr.Markdown("""
-                    <h3>🎮 Draft Format</h3>
-                    <ul style="list-style-type: disc; padding-left: 20px;">
-                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>3 Rounds</strong> <span style="color: #ffffff !important;">of snake draft (1→6, 6→1, 1→6)</span></li>
-                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>Real-time trash talk</strong> <span style="color: #ffffff !important;">between picks</span></li>
-                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>Strategic advisor</strong> <span style="color: #ffffff !important;">guides your selections</span></li>
-                    <li style="color: #ffffff !important; margin: 5px 0;"><strong>Memory system</strong> <span style="color: #ffffff !important;">- agents remember and reference earlier picks</span></li>
-                    </ul>
+                    ### 🎮 Draft Format
+                    * **3 Rounds** of snake draft (1→6, 6→1, 1→6)
+                    * **Real-time trash talk** between picks
+                    * **Strategic advisor** guides your selections
+                    * **Memory system** - agents remember and reference earlier picks
                     
-                    <p style="color: #ffffff !important; margin-top: 20px;">Ready to experience the most realistic AI draft room?</p>
+                    Ready to experience the most realistic AI draft room?
                     """)
                     
                     # Start button at the bottom
@@ -1103,7 +1056,7 @@ def create_gradio_interface():
             show_progress=True
         )
         
-        # Custom CSS - simple and clean for Default theme
+        # Minimal CSS for layout only
         demo.css = """
         #main-container {
             max-width: 1200px;
@@ -1113,15 +1066,19 @@ def create_gradio_interface():
         .multiagent-output {
             max-height: 800px;
             overflow-y: auto;
-            font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        /* Force dark text in message cards */
+        .multiagent-output div[style*="background-color"] {
+            color: #212121 !important;
+        }
+        
+        .multiagent-output div[style*="background-color"] * {
+            color: #212121 !important;
         }
         
         #start-button {
             margin-top: 20px;
-        }
-        
-        #draft-pick-input {
-            font-size: 16px;
         }
         """
     
@@ -1144,7 +1101,7 @@ def main():
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
-        share=False,
+        share=True,
         show_error=True
     )
 

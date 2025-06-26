@@ -68,27 +68,26 @@ def format_agent_message(agent, recipient: str, message: str,
     # Build the message box with more specific color
     html = f'<div style="background-color: {bg_color}; '
     html += f'border-left: 4px solid {border_color}; '
-    html += f'padding: 15px; border-radius: 8px; margin: 10px 0; '
-    html += f'color: #212121 !important;">\n\n'
+    html += f'padding: 15px; border-radius: 8px; margin: 10px 0;">\n\n'
     
     # Header with sender/recipient
     if agent == "system" or icon == "💭":
         # System messages are centered and italicized
-        html = f'<div style="text-align: center; margin: 10px 0;">\n\n'
-        html += f'*{message}*\n\n'
+        html = f'<div style="text-align: center; margin: 10px 0; color: #424242;">\n\n'
+        html += f'<span style="color: #424242;">*{message}*</span>\n\n'
         html += '</div>\n\n'
         return html
     elif recipient == "ALL":
-        html += f'**{icon} {name}**\n\n'
+        html += f'<span style="color: #212121;">**{icon} {name}**</span>\n\n'
     elif recipient == "USER":
-        html += f'**{icon} {name} → You**\n\n'
+        html += f'<span style="color: #212121;">**{icon} {name} → You**</span>\n\n'
     elif show_arrow:
-        html += f'**{icon} {name} → {recipient}**\n\n'
+        html += f'<span style="color: #212121;">**{icon} {name} → {recipient}**</span>\n\n'
     else:
-        html += f'**{icon} {name}**\n\n'
+        html += f'<span style="color: #212121;">**{icon} {name}**</span>\n\n'
     
     # Message content
-    html += f'{message}\n\n'
+    html += f'<span style="color: #212121;">{message}</span>\n\n'
     html += '</div>\n\n'
     
     return html
