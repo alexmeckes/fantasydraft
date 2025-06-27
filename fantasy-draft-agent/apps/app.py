@@ -630,6 +630,27 @@ def create_gradio_interface():
             color: rgba(255, 255, 255, 0.9) !important;
         }
         
+        /* Fix for bold player names - ensure they're visible */
+        .multiagent-output strong,
+        .multiagent-output b {
+            color: inherit !important;
+            font-weight: 700;
+        }
+        
+        /* Ensure bold text in message backgrounds has proper color */
+        div[style*="background-color"] strong,
+        div[style*="background-color"] b {
+            color: inherit !important;
+        }
+        
+        /* Specific fix for bold text in different message backgrounds */
+        div[style*="background-color: #E3F2FD"] strong,  /* Team messages */
+        div[style*="background-color: #FFF8E1"] strong,  /* Commissioner */
+        div[style*="background-color: #FFEBEE"] strong,  /* Advisor */
+        div[style*="background-color: #F3E5F5"] strong { /* Memory */
+            color: #1a1a1a !important;
+        }
+        
         /* Inline typing effect */
         .typing-dots {
             animation: pulse 1.0s ease-in-out infinite;

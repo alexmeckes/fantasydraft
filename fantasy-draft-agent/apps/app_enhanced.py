@@ -707,9 +707,11 @@ class EnhancedFantasyDraftApp:
 
 def create_gradio_interface():
     """Create the main Gradio interface with A2A support."""
-    app = EnhancedFantasyDraftApp()
     
     with gr.Blocks(title="Fantasy Draft Multi-Agent Demo", theme=gr.themes.Soft()) as demo:
+        # Create state for each user session
+        app_state = gr.State(None)
+        
         with gr.Column(elem_id="main-container"):
             gr.Markdown("""
             # 🏈 Fantasy Draft Multi-Agent Demo
@@ -732,8 +734,10 @@ def create_gradio_interface():
                             )
                             mode_info = gr.Markdown(
                                 """
-                                **Simulated**: Fast, single-process execution
-                                **Real A2A**: Distributed agents on HTTP servers (starts when draft begins)
+                                **Simulated**: Fast, single-process execution (✅ Multi-user safe)
+                                **Real A2A**: Distributed agents on HTTP servers (⚠️ Single user at a time due to fixed ports)
+                                
+                                *Note: For Hugging Face Spaces, we recommend using Simulated mode for the best multi-user experience.*
                                 """
                             )
                     
@@ -985,13 +989,13 @@ def create_gradio_interface():
                     """)
         
         # Function to check if it's user's turn and show/hide controls
-        def check_user_turn(output_text):
+        def check_user_turn(output_text, app):
             """Check if output indicates it's user's turn."""
             if "<!--USER_TURN-->" in output_text:
                 # Remove the marker from display
                 clean_output = output_text.replace("<!--USER_TURN-->", "")
                 # Get available players
-                if app.current_draft:
+                if app and app.current_draft:
                     available = app.current_draft.get_available_players()
                     available_text = "Available Players:\n\n"
                     for player in sorted(available)[:20]:  # Show top 20
@@ -1020,39 +1024,48 @@ def create_gradio_interface():
         # No need for separate mode change handler - it happens when draft starts
         
         # Run multi-agent demo with control visibility handling
-        def run_and_check(mode):
+        def run_and_check(mode, app):
             """Run demo and check for user turn."""
+            # Create a new app instance for this user if needed
+            if app is None:
+                app = EnhancedFantasyDraftApp()
+            
             use_a2a = mode == "Real A2A"
             for output in app.run_multiagent_demo(use_a2a):
-                result = check_user_turn(output)
-                yield result
+                result = check_user_turn(output, app)
+                yield result + (app,)  # Return the app state as the last element
         
         run_multiagent_btn.click(
             run_and_check,
-            communication_mode,
-            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            [communication_mode, app_state],
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input, app_state],
             show_progress=True
         )
         
         # Continue draft after user pick
-        def submit_and_continue(player_name):
+        def submit_and_continue(player_name, app):
             """Submit pick and continue draft."""
+            if app is None:
+                yield ("No active draft. Please start a new mock draft.", 
+                       gr.update(visible=False), gr.update(visible=False), "", "", None)
+                return
+                
             for output in app.continue_mock_draft(player_name):
-                result = check_user_turn(output)
-                yield result
+                result = check_user_turn(output, app)
+                yield result + (app,)  # Return the app state as the last element
         
         submit_pick_btn.click(
             submit_and_continue,
-            draft_pick_input,
-            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            [draft_pick_input, app_state],
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input, app_state],
             show_progress=True
         )
         
         # Also submit on enter
         draft_pick_input.submit(
             submit_and_continue,
-            draft_pick_input,
-            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input],
+            [draft_pick_input, app_state],
+            [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input, app_state],
             show_progress=True
         )
         
