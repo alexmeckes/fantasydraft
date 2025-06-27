@@ -544,15 +544,15 @@ def create_gradio_interface():
                         with gr.Column():
                             gr.Markdown("### 🔧 Communication Mode")
                             communication_mode = gr.Radio(
-                                ["Basic Multiagent", "A2A"],
-                                value="Basic Multiagent",
+                                ["A2A", "Basic Multiagent"],
+                                value="A2A",
                                 label="Select how agents communicate",
-                                info="Basic Multiagent: Fast, single-process | A2A: Distributed agents with dynamic ports (✅ Multi-user safe!)"
+                                info="A2A: Distributed agents with dynamic ports (Recommended) | Basic Multiagent: Fast, single-process"
                             )
                             mode_info = gr.Markdown(
                                 """
+                                **A2A** (Recommended): Distributed agents with dynamic ports (✅ Multi-user safe!)
                                 **Basic Multiagent**: Fast, single-process execution (✅ Multi-user safe)
-                                **A2A**: Distributed agents with dynamic ports (✅ Multi-user safe!)
                                 
                                 *Each A2A session gets unique ports automatically allocated in the 5000-9000 range.*
                                 """
@@ -725,18 +725,18 @@ def create_gradio_interface():
                     
                     **Two Modes Available:**
                     
-                    #### 1. Basic Multiagent Mode (Default)
-                    - Single process, direct method calls
-                    - Shared memory between agents
-                    - Fast execution, simple debugging
-                    - Perfect for demos and development
-                    
-                    #### 2. A2A Mode
+                    #### 1. A2A Mode (Default)
                     - **Distributed Architecture**: Each agent runs on its own HTTP server
                     - **Dynamic Ports**: Each session gets unique ports automatically
                     - **True Isolation**: No shared memory, HTTP communication only
                     - **Production Ready**: Scalable to multiple machines
                     - **Uses a2a_tool_async**: Official any-agent A2A protocol
+                    
+                    #### 2. Basic Multiagent Mode
+                    - Single process, direct method calls
+                    - Shared memory between agents
+                    - Fast execution, simple debugging
+                    - Perfect for quick testing and development
                     
                     ### 📊 Architecture Flow
                     """)
