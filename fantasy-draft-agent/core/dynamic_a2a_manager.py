@@ -16,9 +16,9 @@ from core.constants import (
     AGENT_STARTUP_WAIT,
     DEFAULT_TIMEOUT,
     MAX_COMMENTS_PER_PICK,
-    RIVAL_PAIRS,
-    TOP_PLAYERS
+    RIVAL_PAIRS
 )
+from core.data import TOP_PLAYERS
 from core.a2a_helpers import (
     parse_a2a_response,
     extract_task_id,
