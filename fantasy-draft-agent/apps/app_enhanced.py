@@ -68,7 +68,7 @@ class EnhancedFantasyDraftApp:
         self.session_id = None
     
     async def toggle_a2a_mode(self, use_a2a: bool):
-        """Toggle between simulated and real A2A."""
+        """Toggle between basic multiagent and A2A modes."""
         self.use_real_a2a = use_a2a
         
         if use_a2a:
@@ -83,7 +83,7 @@ class EnhancedFantasyDraftApp:
             try:
                 await self.a2a_manager.start_agents()
                 ports = self.a2a_manager.allocated_ports
-                self.a2a_status = f"✅ Real A2A Mode Active (Session: {self.session_id}, Ports: {ports[0]}-{ports[-1]})"
+                self.a2a_status = f"✅ A2A Mode Active (Session: {self.session_id}, Ports: {ports[0]}-{ports[-1]})"
             except RuntimeError as e:
                 # Failed to allocate ports or start agents
                 self.a2a_status = f"❌ Failed to start A2A: {str(e)}"
@@ -93,7 +93,7 @@ class EnhancedFantasyDraftApp:
             if self.a2a_manager:
                 await cleanup_session(self.a2a_manager)
                 self.a2a_manager = None
-            self.a2a_status = "✅ Simulated Mode Active (Using built-in communication)"
+            self.a2a_status = "✅ Basic Multiagent Mode Active (Using built-in communication)"
         
         return self.a2a_status
     
@@ -117,7 +117,7 @@ class EnhancedFantasyDraftApp:
         if use_a2a and self.a2a_manager:
             yield from self.run_a2a_draft()
         else:
-            # Use original simulated draft
+            # Use basic multiagent draft
             draft_generator = run_interactive_mock_draft()
             
             for output in draft_generator:
@@ -131,10 +131,10 @@ class EnhancedFantasyDraftApp:
                     yield output
     
     def run_a2a_draft(self):
-        """Run draft with real A2A communication."""
+        """Run draft with A2A communication."""
         # Initialize draft
         self.current_draft = MultiAgentMockDraft(user_pick_position=4)
-        self.draft_output = "# 🏈 Mock Draft with Real A2A Communication\n\n"
+        self.draft_output = "# 🏈 Mock Draft with A2A Communication\n\n"
         
         # Welcome message
         self.draft_output += format_agent_message(
@@ -225,7 +225,7 @@ class EnhancedFantasyDraftApp:
         self.current_draft = None
     
     async def run_a2a_draft_turn(self, team_num: int, round_num: int, pick_num: int):
-        """Run a draft turn using real A2A."""
+        """Run a draft turn using A2A."""
         messages = []
         
         # Commissioner announcement
@@ -361,7 +361,7 @@ class EnhancedFantasyDraftApp:
         if self.use_real_a2a and self.a2a_manager:
             yield from self.continue_a2a_draft()
         else:
-            yield from self.continue_simulated_draft()
+            yield from self.continue_basic_multiagent_draft()
     
     def continue_a2a_draft(self):
         """Continue A2A draft after user pick."""
@@ -445,8 +445,8 @@ class EnhancedFantasyDraftApp:
         
         self.current_draft = None
     
-    def continue_simulated_draft(self):
-        """Continue simulated draft after user pick."""
+    def continue_basic_multiagent_draft(self):
+        """Continue basic multiagent draft after user pick."""
         # This is the original logic from app.py
         total_picks = len([p for picks in self.current_draft.draft_board.values() for p in picks])
         current_round = ((total_picks - 1) // 6) + 1
@@ -544,15 +544,15 @@ def create_gradio_interface():
                         with gr.Column():
                             gr.Markdown("### 🔧 Communication Mode")
                             communication_mode = gr.Radio(
-                                ["Simulated", "Real A2A"],
-                                value="Simulated",
+                                ["Basic Multiagent", "A2A"],
+                                value="Basic Multiagent",
                                 label="Select how agents communicate",
-                                info="Simulated: Fast, single-process | Real A2A: Distributed agents with dynamic ports (✅ Multi-user safe!)"
+                                info="Basic Multiagent: Fast, single-process | A2A: Distributed agents with dynamic ports (✅ Multi-user safe!)"
                             )
                             mode_info = gr.Markdown(
                                 """
-                                **Simulated**: Fast, single-process execution (✅ Multi-user safe)
-                                **Real A2A**: Distributed agents with dynamic ports (✅ Multi-user safe!)
+                                **Basic Multiagent**: Fast, single-process execution (✅ Multi-user safe)
+                                **A2A**: Distributed agents with dynamic ports (✅ Multi-user safe!)
                                 
                                 *Each A2A session gets unique ports automatically allocated in the 5000-9000 range.*
                                 """
@@ -725,15 +725,15 @@ def create_gradio_interface():
                     
                     **Two Modes Available:**
                     
-                    #### 1. Simulated Mode (Default)
+                    #### 1. Basic Multiagent Mode (Default)
                     - Single process, direct method calls
                     - Shared memory between agents
                     - Fast execution, simple debugging
                     - Perfect for demos and development
                     
-                    #### 2. Real A2A Mode
+                    #### 2. A2A Mode
                     - **Distributed Architecture**: Each agent runs on its own HTTP server
-                    - **Ports**: Agents on 5001, 5002, 5003, 5005, 5006
+                    - **Dynamic Ports**: Each session gets unique ports automatically
                     - **True Isolation**: No shared memory, HTTP communication only
                     - **Production Ready**: Scalable to multiple machines
                     - **Uses a2a_tool_async**: Official any-agent A2A protocol
@@ -785,7 +785,7 @@ def create_gradio_interface():
                     3. **Dynamic Adaptation**: Agents adjust based on draft progression
                     4. **Natural Dialogue**: Human-like commentary and debates
                     5. **User Integration**: Seamless human participation with AI guidance
-                    6. **A2A Communication**: Toggle between simulated and real distributed agents
+                    6. **A2A Communication**: Toggle between basic multiagent and distributed A2A modes
                     
                     ### 📝 Implementation Details
                     
@@ -847,7 +847,7 @@ def create_gradio_interface():
             if app is None:
                 app = EnhancedFantasyDraftApp()
             
-            use_a2a = mode == "Real A2A"
+            use_a2a = mode == "A2A"
             for output in app.run_multiagent_demo(use_a2a):
                 result = check_user_turn(output, app)
                 yield result + (app,)  # Return the app state as the last element
