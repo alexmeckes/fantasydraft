@@ -5,8 +5,8 @@ Constants for the Fantasy Draft A2A implementation.
 # Timing constants (in seconds)
 TYPING_DELAY_SECONDS = 0.5
 MESSAGE_DELAY_SECONDS = 1.0
-AGENT_START_DELAY = 3.0
-AGENT_STARTUP_WAIT = 0.5
+AGENT_START_DELAY = 5.0  # Increased from 3.0 to give agents more time to fully initialize
+AGENT_STARTUP_WAIT = 1.0  # Increased from 0.5 to ensure each agent is ready
 DEFAULT_TIMEOUT = 30.0
 
 # Comment configuration

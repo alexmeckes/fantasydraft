@@ -912,15 +912,8 @@ def create_gradio_interface():
         }
         """
         
-        # Add cleanup handler for when users leave
-        async def cleanup_on_unload(app):
-            """Clean up resources when user leaves."""
-            if app and app.a2a_manager:
-                print(f"🧹 Cleaning up session {app.session_id}")
-                await cleanup_session(app.a2a_manager)
-        
-        # Register cleanup (this will be called when the user's session ends)
-        demo.unload(lambda app: asyncio.create_task(cleanup_on_unload(app)), inputs=[app_state])
+        # Note: Gradio's unload() doesn't support inputs, so automatic cleanup
+        # happens when the Python process ends or when new sessions override old ones
     
     return demo
 
