@@ -533,7 +533,7 @@ def create_gradio_interface():
             gr.Markdown("""
             # 🏈 Fantasy Draft Multi-Agent Demo
             
-            **Experience the future of AI interaction:** Watch 6 intelligent agents compete in a fantasy football draft with distinct strategies, real-time trash talk, and persistent memory.
+            **Multi-agent system demo using the any-agent framework:** Watch 6 AI agents draft fantasy football teams while maintaining conversation history, reacting to each other's picks, and following distinct strategies.
             """)
             
             with gr.Tabs():
