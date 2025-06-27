@@ -1,6 +1,9 @@
 any-agent[openai]
 python-dotenv
 pydantic
-gradio
+gradio>=4.0.0
+nest-asyncio
+aiohttp
+typing-extensions
 # Optional: For enhanced console demos
 # rich

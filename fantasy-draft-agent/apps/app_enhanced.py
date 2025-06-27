@@ -920,23 +920,30 @@ def create_gradio_interface():
 
 def main():
     """Main entry point."""
-    # Check for API key
+    # Check for API key - but don't exit on Hugging Face Spaces
     if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY not found in environment")
-        print("Please set it using: export OPENAI_API_KEY='your-key-here'")
-        exit(1)
+        if os.getenv("SPACE_ID"):  # Running on Hugging Face Spaces
+            print("⚠️  OPENAI_API_KEY not found - please set it in Space Settings > Repository secrets")
+        else:
+            print("Error: OPENAI_API_KEY not found in environment")
+            print("Please set it using: export OPENAI_API_KEY='your-key-here'")
+            exit(1)
     
     # Create and launch the interface
     demo = create_gradio_interface()
     
     print("🚀 Launching Enhanced Fantasy Draft App with A2A Support...")
     
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=True,
-        show_error=True
-    )
+    # Check if running on Hugging Face Spaces
+    if os.getenv("SPACE_ID"):
+        demo.launch()  # Hugging Face handles server config
+    else:
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=7860,
+            share=True,
+            show_error=True
+        )
 
 
 if __name__ == "__main__":
