@@ -32,6 +32,7 @@ from core.a2a_helpers import (
     extract_task_id,
     format_available_players
 )
+from core.dynamic_a2a_manager import DynamicA2AAgentManager, cleanup_session
 from apps.multiagent_draft import MultiAgentMockDraft
 from apps.multiagent_scenarios import (
     run_interactive_mock_draft,
@@ -57,225 +58,41 @@ os.environ['OPENAI_API_BASE'] = 'https://api.openai.com/v1'
 load_dotenv()
 
 
-# A2A Models (from app_with_a2a.py)
-class A2AOutput(BaseModel):
-    """Combined output type for A2A agents."""
-    type: str  # "pick" or "comment"
-    # Pick fields
-    player_name: Optional[str] = None
-    reasoning: Optional[str] = None
-    trash_talk: Optional[str] = None
-    # Comment fields
-    should_comment: Optional[bool] = None
-    comment: Optional[str] = None
-
-
-# A2A Agent Manager (from app_with_a2a.py)
-class A2AAgentManager:
-    """Manages real A2A agents for the draft."""
-    
-    def __init__(self, max_comments_per_pick=MAX_COMMENTS_PER_PICK):
-        self.agents = {}
-        self.agent_tools = {}
-        self.serve_tasks = []
-        self.is_running = False
-        self.task_ids = {}  # Track task IDs for multi-turn conversations
-        self.max_comments_per_pick = max_comments_per_pick  # Configurable comment limit
-        
-    async def start_agents(self):
-        """Start all A2A agent servers."""
-        if self.is_running:
-            return
-            
-        print("🚀 Starting A2A agents...")
-        
-        # Create and serve all agents from configuration
-        for config in AGENT_CONFIGS:
-            try:
-                # Create agent with combined output type
-                agent = await AnyAgent.create_async(
-                    "tinyagent",
-                    AgentConfig(
-                        name=f"team_{config['team_num']}_agent",
-                        model_id="gpt-4o-mini",
-                        description=f"{config['team_name']} - {config['strategy']} fantasy football team manager",
-                        instructions=f"""You are {config['team_name']}, a fantasy football manager with {config['strategy']} strategy.
-
-For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
-For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
-
-PERSONALITY REQUIREMENTS:
-- Use LOTS of emojis that match your strategy! 🔥
-- Be EXTREMELY dramatic and over-the-top! 
-- Take your philosophy to the EXTREME!
-- MOCK other strategies viciously!
-- Use CAPS for emphasis!
-- Make BOLD predictions!
-- Reference previous interactions with SPITE!
-- Build INTENSE rivalries!
-- Your responses should be ENTERTAINING and MEMORABLE!
-
-Your EXTREME philosophy: {config['philosophy']}
-
-BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
-                        output_type=A2AOutput,
-                    )
-                )
-                
-                self.agents[config['team_num']] = agent
-                
-                # Serve agent
-                serve_task = asyncio.create_task(
-                    agent.serve_async(
-                        A2AServingConfig(
-                            port=config['port'],
-                            task_timeout_minutes=30,
-                        )
-                    )
-                )
-                self.serve_tasks.append(serve_task)
-                print(f"✅ Started server for {config['team_name']} on port {config['port']}")
-                
-                # Small delay between starting agents
-                await asyncio.sleep(AGENT_STARTUP_WAIT)
-                
-            except Exception as e:
-                print(f"❌ Failed to create/serve {config['team_name']}: {e}")
-        
-        # Wait for servers to start
-        await asyncio.sleep(AGENT_START_DELAY)
-        
-        # Create tools for each agent
-        for config in AGENT_CONFIGS:
-            team_num = config['team_num']
-            if team_num not in self.agents:
-                continue
-                
-            try:
-                tool_url = f"http://localhost:{config['port']}"
-                self.agent_tools[team_num] = await a2a_tool_async(
-                    tool_url,
-                    http_kwargs={"timeout": DEFAULT_TIMEOUT}
-                )
-                print(f"✅ Created A2A tool for Team {team_num} on port {config['port']}")
-                
-            except Exception as e:
-                print(f"❌ Failed to create tool for Team {team_num}: {e}")
-        
-        self.is_running = len(self.agent_tools) > 0
-        if self.is_running:
-            print(f"✅ A2A agents ready! ({len(self.agent_tools)} agents active)")
-        else:
-            print("❌ Failed to start any A2A agents")
-    
-    async def stop_agents(self):
-        """Stop all A2A agent servers."""
-        if not self.is_running:
-            return
-            
-        print("🛑 Stopping A2A agents...")
-        
-        for task in self.serve_tasks:
-            task.cancel()
-        
-        await asyncio.gather(*self.serve_tasks, return_exceptions=True)
-        
-        self.agents.clear()
-        self.agent_tools.clear()
-        self.serve_tasks.clear()
-        self.is_running = False
-        
-        print("✅ A2A agents stopped.")
-    
-    async def get_pick(self, team_num: int, available_players: List[str], 
-                      previous_picks: List[str], round_num: int = 1) -> Optional[A2AOutput]:
-        """Get a pick from an A2A agent."""
-        if team_num not in self.agent_tools:
-            return None
-        
-        # Build the prompt with essential info
-        available_str = format_available_players(available_players, TOP_PLAYERS)
-        
-        # Simple prompt - let task_id maintain conversation history
-        prompt = f"""🚨 IT'S YOUR TIME TO DOMINATE! 🚨 (Round {round_num})
-        
-Available top players: {', '.join(available_str)}
-Your roster so far: {', '.join(previous_picks) if previous_picks else 'None yet'}
-
-Make your pick and DESTROY the competition! 💪
-Output an A2AOutput with type="pick", player_name, reasoning (with emojis!), and SAVAGE trash_talk!
-Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMINANCE! 🔥"""
-        
-        try:
-            # Use task_id if we have one for this agent
-            task_id = self.task_ids.get(team_num)
-            result = await self.agent_tools[team_num](prompt, task_id=task_id)
-            
-            # Extract and store task_id
-            task_id = extract_task_id(result)
-            if task_id:
-                self.task_ids[team_num] = task_id
-            
-            # Parse the response
-            output = parse_a2a_response(result, A2AOutput)
-            return output
-                
-        except Exception as e:
-            print(f"Error getting pick from Team {team_num}: {e}")
-            return None
-    
-    async def get_comment(self, commenting_team: int, picking_team: int,
-                         player_picked: str, round_num: int = 1) -> Optional[str]:
-        """Get a comment from an A2A agent about a pick."""
-        if commenting_team not in self.agent_tools:
-            return None
-        
-        # Simple prompt - let task_id maintain conversation history  
-        prompt = f"""🎯 Team {picking_team} just picked {player_picked}! 
-
-This is your chance to DESTROY them with your superior knowledge! 💥
-Should you UNLEASH your wisdom? Output an A2AOutput with type="comment", should_comment (true/false), and a DEVASTATING comment with emojis!
-If they're your RIVAL, make it PERSONAL! If they made a BAD pick, ROAST THEM! 🔥
-Use emojis to make your point UNFORGETTABLE! 😈"""
-        
-        try:
-            # Use task_id for continuity
-            task_id = self.task_ids.get(commenting_team)
-            result = await self.agent_tools[commenting_team](prompt, task_id=task_id)
-            
-            # Extract and store task_id
-            task_id = extract_task_id(result)
-            if task_id:
-                self.task_ids[commenting_team] = task_id
-            
-            # Parse the response
-            output = parse_a2a_response(result, A2AOutput)
-            
-            if output and hasattr(output, 'should_comment') and output.should_comment and output.comment:
-                return output.comment
-        except Exception as e:
-            print(f"Error getting comment from Team {commenting_team}: {e}")
-        
-        return None
-
-
 class EnhancedFantasyDraftApp:
     def __init__(self):
         self.current_draft = None  # Store the current mock draft
         self.draft_output = ""  # Store the draft output so far
-        self.a2a_manager = A2AAgentManager()
+        self.a2a_manager = None  # Will be created dynamically with session ID
         self.use_real_a2a = False
         self.a2a_status = "Not initialized"
+        self.session_id = None
     
     async def toggle_a2a_mode(self, use_a2a: bool):
         """Toggle between simulated and real A2A."""
         self.use_real_a2a = use_a2a
         
         if use_a2a:
-            await self.a2a_manager.start_agents()
-            self.a2a_status = "✅ Real A2A Mode Active (Agents running on ports 5001-5006)"
+            # Generate unique session ID if needed
+            if not self.session_id:
+                import uuid
+                self.session_id = str(uuid.uuid4())[:8]
+            
+            # Create new dynamic manager for this session
+            self.a2a_manager = DynamicA2AAgentManager(self.session_id)
+            
+            try:
+                await self.a2a_manager.start_agents()
+                ports = self.a2a_manager.allocated_ports
+                self.a2a_status = f"✅ Real A2A Mode Active (Session: {self.session_id}, Ports: {ports[0]}-{ports[-1]})"
+            except RuntimeError as e:
+                # Failed to allocate ports or start agents
+                self.a2a_status = f"❌ Failed to start A2A: {str(e)}"
+                self.use_real_a2a = False
+                self.a2a_manager = None
         else:
-            await self.a2a_manager.stop_agents()
+            if self.a2a_manager:
+                await cleanup_session(self.a2a_manager)
+                self.a2a_manager = None
             self.a2a_status = "✅ Simulated Mode Active (Using built-in communication)"
         
         return self.a2a_status
@@ -297,7 +114,7 @@ class EnhancedFantasyDraftApp:
         self.current_draft = MultiAgentMockDraft(user_pick_position=4)
         
         # Run the appropriate draft
-        if use_a2a and self.a2a_manager.is_running:
+        if use_a2a and self.a2a_manager:
             yield from self.run_a2a_draft()
         else:
             # Use original simulated draft
@@ -541,7 +358,7 @@ class EnhancedFantasyDraftApp:
                     time.sleep(MESSAGE_DELAY_SECONDS)
         
         # Continue with the rest of the draft
-        if self.use_real_a2a and self.a2a_manager.is_running:
+        if self.use_real_a2a and self.a2a_manager:
             yield from self.continue_a2a_draft()
         else:
             yield from self.continue_simulated_draft()
@@ -730,14 +547,14 @@ def create_gradio_interface():
                                 ["Simulated", "Real A2A"],
                                 value="Simulated",
                                 label="Select how agents communicate",
-                                info="Simulated: Fast, single-process | Real A2A: Distributed agents on separate servers"
+                                info="Simulated: Fast, single-process | Real A2A: Distributed agents with dynamic ports (✅ Multi-user safe!)"
                             )
                             mode_info = gr.Markdown(
                                 """
                                 **Simulated**: Fast, single-process execution (✅ Multi-user safe)
-                                **Real A2A**: Distributed agents on HTTP servers (⚠️ Single user at a time due to fixed ports)
+                                **Real A2A**: Distributed agents with dynamic ports (✅ Multi-user safe!)
                                 
-                                *Note: For Hugging Face Spaces, we recommend using Simulated mode for the best multi-user experience.*
+                                *Each A2A session gets unique ports automatically allocated in the 5000-9000 range.*
                                 """
                             )
                     
@@ -1094,6 +911,16 @@ def create_gradio_interface():
             margin-top: 20px;
         }
         """
+        
+        # Add cleanup handler for when users leave
+        async def cleanup_on_unload(app):
+            """Clean up resources when user leaves."""
+            if app and app.a2a_manager:
+                print(f"🧹 Cleaning up session {app.session_id}")
+                await cleanup_session(app.a2a_manager)
+        
+        # Register cleanup (this will be called when the user's session ends)
+        demo.unload(lambda app: asyncio.create_task(cleanup_on_unload(app)), inputs=[app_state])
     
     return demo
 
