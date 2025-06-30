@@ -11,11 +11,11 @@ aiohttp
 # Pin to specific version for consistency
 a2a-sdk==0.2.9
 
-# Step 3: Install any-agent base (without extras first)
-any-agent==0.21.1
+# Step 3: Install any-agent with both a2a and openai extras
+any-agent[a2a,openai]==0.21.1
 
-# Step 4: Install the extra dependencies separately
-# OpenAI dependencies
+# Step 4: Additional dependencies (if not pulled in by any-agent)
+# These might already be installed by any-agent[openai] but we list them to be sure
 openai>=1.0.0
 litellm>=1.0.0
 
