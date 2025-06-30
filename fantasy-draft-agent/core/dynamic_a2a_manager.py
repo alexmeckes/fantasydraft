@@ -5,6 +5,7 @@ Dynamic A2A Manager with multi-user support through dynamic port allocation.
 import asyncio
 import socket
 import hashlib
+import os
 from typing import List, Dict, Optional, Tuple
 from pydantic import BaseModel
 from any_agent import AgentConfig, AnyAgent
@@ -65,22 +66,27 @@ class DynamicA2AAgentManager:
     async def _find_available_ports(self, count: int = 5, start: int = 5000, end: int = 9000) -> List[int]:
         """Find available consecutive ports for agents."""
         async with self._port_lock:
-            # Try to find a consecutive range
-            for base_port in range(start, end - count, 10):
-                ports = list(range(base_port, base_port + count))
-                
-                # Check if any port in range is already used
-                if any(p in self._used_ports for p in ports):
-                    continue
-                
-                # Check if ports are actually available on the system
-                if await self._check_ports_available(ports):
-                    # Reserve these ports
-                    self._used_ports.update(ports)
-                    self.allocated_ports = ports
-                    return ports
+            # On HF Spaces, try different port ranges
+            port_ranges = [(8000, 9000), (5000, 6000), (7000, 8000), (9000, 10000)] if os.getenv("SPACE_ID") else [(start, end)]
             
-            raise RuntimeError(f"Could not find {count} available consecutive ports")
+            for range_start, range_end in port_ranges:
+                # Try to find a consecutive range
+                for base_port in range(range_start, range_end - count, 10):
+                    ports = list(range(base_port, base_port + count))
+                    
+                    # Check if any port in range is already used
+                    if any(p in self._used_ports for p in ports):
+                        continue
+                    
+                    # Check if ports are actually available on the system
+                    if await self._check_ports_available(ports):
+                        # Reserve these ports
+                        self._used_ports.update(ports)
+                        self.allocated_ports = ports
+                        print(f"✅ Found available ports in range {range_start}-{range_end}: {ports}")
+                        return ports
+            
+            raise RuntimeError(f"Could not find {count} available consecutive ports in any range")
     
     async def _check_ports_available(self, ports: List[int]) -> bool:
         """Check if a list of ports is available on the system."""
@@ -89,9 +95,25 @@ class DynamicA2AAgentManager:
                 # Try to bind to the port
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.bind(('localhost', port))
+                
+                # On HF Spaces, try different bind addresses
+                bind_addresses = ['localhost', '127.0.0.1', '0.0.0.0']
+                bound = False
+                
+                for addr in bind_addresses:
+                    try:
+                        sock.bind((addr, port))
+                        bound = True
+                        break
+                    except OSError:
+                        continue
+                
                 sock.close()
-            except OSError:
+                if not bound:
+                    print(f"Port {port} not available on any interface")
+                    return False
+            except Exception as e:
+                print(f"Error checking port {port}: {e}")
                 return False
         return True
     
@@ -170,10 +192,14 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
                     self.agents[config['team_num']] = agent
                     
                     # Serve agent on dynamic port
+                    # On HF Spaces, we might need to bind to 0.0.0.0
+                    host = "0.0.0.0" if os.getenv("SPACE_ID") else "localhost"
+                    
                     serve_task = asyncio.create_task(
                         agent.serve_async(
                             A2AServingConfig(
                                 port=config['port'],
+                                host=host,
                                 task_timeout_minutes=30,
                             )
                         )
@@ -196,12 +222,14 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
                     continue
                     
                 try:
-                    tool_url = f"http://localhost:{config['port']}"
+                    # On HF Spaces, we might need to use 127.0.0.1 for internal communication
+                    host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
+                    tool_url = f"http://{host}:{config['port']}"
                     self.agent_tools[team_num] = await a2a_tool_async(
                         tool_url,
                         http_kwargs={"timeout": DEFAULT_TIMEOUT}
                     )
-                    print(f"✅ Created A2A tool for Team {team_num} on port {config['port']}")
+                    print(f"✅ Created A2A tool for Team {team_num} at {tool_url}")
                     
                 except Exception as e:
                     print(f"❌ Failed to create tool for Team {team_num}: {e}")

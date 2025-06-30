@@ -1,11 +1,28 @@
-any-agent[openai,a2a]
+# Core any-agent package
+any-agent>=0.21.0
+
+# A2A specific dependencies
 a2a-sdk>=0.2.8
+grpcio>=1.60
+grpcio-tools>=1.60
+grpcio-reflection>=1.7.0
+protobuf==5.29.5
+httpx
+httpx-sse>=0.4.0
+sse-starlette
+fastapi>=0.115.2
+uvicorn>=0.23.1
+
+# OpenAI support
+openai>=1.0.0
+litellm==1.72.4
+
+# App dependencies
 python-dotenv
 pydantic
 gradio>=4.0.0
 nest-asyncio
 aiohttp
 typing-extensions
-# Optional: For enhanced console demos
-# rich
-# Updated Mon Jun 30 11:07:26 EDT 2025
+
+# Updated for explicit A2A support
