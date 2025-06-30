@@ -1,7 +1,4 @@
-# Core any-agent package
-any-agent>=0.21.0
-
-# A2A specific dependencies
+# Install A2A dependencies FIRST
 a2a-sdk>=0.2.8
 grpcio>=1.60
 grpcio-tools>=1.60
@@ -13,7 +10,10 @@ sse-starlette
 fastapi>=0.115.2
 uvicorn>=0.23.1
 
-# OpenAI support
+# Then install any-agent with explicit A2A extra
+any-agent[a2a]>=0.21.0
+
+# OpenAI support (already included in any-agent[openai] but being explicit)
 openai>=1.0.0
 litellm==1.72.4
 
@@ -25,4 +25,4 @@ nest-asyncio
 aiohttp
 typing-extensions
 
-# Updated for explicit A2A support
+# Updated with correct installation order for A2A
