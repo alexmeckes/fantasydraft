@@ -5,21 +5,33 @@ Entry point for Hugging Face Spaces
 
 import sys
 import os
+import subprocess
 
 # Check if we're on Hugging Face Spaces
 if os.getenv("SPACE_ID"):
     print("🤗 Running on Hugging Face Spaces...")
-    print("ℹ️ Note: A2A mode is experimental on HF Spaces due to dependency issues.")
-    print("ℹ️ Basic Multiagent mode is recommended and provides the full experience!")
+    print("ℹ️ Checking A2A dependencies...")
     
-    # Quick test to see if A2A imports work
+    # Try to import a2a, install if needed
     try:
-        # Test the specific imports that fail
-        import a2a  # This is what usually fails
+        import a2a
+        print("✅ a2a module already available")
+    except ImportError:
+        print("⚠️ a2a module not found, attempting to install...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "a2a-sdk==0.2.9"])
+            import a2a
+            print("✅ Successfully installed and imported a2a!")
+        except Exception as e:
+            print(f"❌ Failed to install a2a-sdk: {e}")
+    
+    # Now test the full A2A imports
+    try:
         from any_agent.serving import A2AServingConfig
-        print("✅ Surprisingly, full A2A dependencies are available! You can try A2A mode.")
+        from any_agent.tools import a2a_tool_async
+        print("✅ Full A2A dependencies are available! A2A mode will work.")
     except ImportError as e:
-        print(f"⚠️ Full A2A dependencies not available: {e}")
+        print(f"⚠️ A2A components not available from any_agent: {e}")
         # Check if lightweight A2A can work
         try:
             import httpx
@@ -28,7 +40,11 @@ if os.getenv("SPACE_ID"):
             print("✅ Lightweight A2A dependencies available! A2A mode will work using HTTP-only.")
             os.environ["A2A_MODE"] = "lightweight"
         except ImportError:
-            print("✅ No problem! Basic Multiagent mode works perfectly and is recommended.")
+            print("✅ Basic Multiagent mode will be used.")
+            
+else:
+    # Not on HF Spaces
+    print("🖥️ Running locally...")
 
 # Import and run the enhanced app
 from apps.app_enhanced import main

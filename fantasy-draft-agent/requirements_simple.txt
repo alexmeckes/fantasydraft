@@ -1,0 +1,25 @@
+# Core requirements for HF Spaces
+# Install in this exact order
+
+# First, ensure we have the latest pip
+--upgrade pip
+
+# Install a2a-sdk explicitly with all its dependencies
+a2a-sdk==0.2.9
+
+# Then install any-agent without extras first
+any-agent==0.21.1
+
+# Then install the openai extra dependencies
+openai>=1.0.0
+litellm>=1.0.0
+
+# App dependencies
+python-dotenv
+pydantic>=2.0.0
+gradio==4.36.0
+nest-asyncio
+aiohttp
+typing-extensions
+
+# Note: We're being very explicit about versions to ensure consistency 

@@ -1,18 +1,28 @@
-# Critical: Install a2a-sdk FIRST (provides 'a2a' module)
-a2a-sdk>=0.2.8
+# Install order matters! 
 
-# Then install any-agent with BOTH a2a and openai extras
-any-agent[a2a,openai]>=0.21.0
-
-# App dependencies
+# Step 1: Core dependencies
 python-dotenv
-pydantic
-gradio>=4.0.0
+pydantic>=2.0.0
+typing-extensions
 nest-asyncio
 aiohttp
-typing-extensions
 
-# Note: any-agent[a2a,openai] will pull in all needed dependencies including:
-# - grpcio, protobuf, httpx (from a2a)
-# - openai, litellm (from openai)
-# We list a2a-sdk explicitly first to ensure the 'a2a' module is available
+# Step 2: Install a2a-sdk (provides 'a2a' module)
+# Pin to specific version for consistency
+a2a-sdk==0.2.9
+
+# Step 3: Install any-agent base (without extras first)
+any-agent==0.21.1
+
+# Step 4: Install the extra dependencies separately
+# OpenAI dependencies
+openai>=1.0.0
+litellm>=1.0.0
+
+# Step 5: Gradio last (it has many dependencies)
+gradio==4.36.0
+
+# Optional: HTTP dependencies for lightweight A2A
+httpx>=0.24.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
