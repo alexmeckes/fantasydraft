@@ -561,11 +561,16 @@ def create_gradio_interface():
                             mode_info = gr.Markdown(
                                 """
                                 **Basic Multiagent** (Recommended for HF Spaces): Fast, single-process execution (✅ Multi-user safe)
-                                **A2A**: Distributed agents with dynamic ports (May not work on HF Spaces due to dependencies)
+                                **A2A**: Distributed agents with dynamic ports (Experimental on HF Spaces)
                                 
                                 *If A2A mode fails to start, please use Basic Multiagent mode instead.*
                                 """
                             )
+                            
+                            # Add A2A test button for debugging
+                            with gr.Accordion("🔧 A2A Debugging (Advanced)", open=False):
+                                test_a2a_btn = gr.Button("Test A2A Dependencies & Ports", size="sm")
+                                a2a_test_output = gr.Textbox(label="Test Results", lines=10, interactive=False)
                     
                     # Show agent cards
                     gr.Markdown("""
@@ -847,6 +852,70 @@ def create_gradio_interface():
                     ""  # Clear the input
                 )
         
+        # Test A2A functionality
+        def test_a2a_functionality():
+            """Test A2A dependencies and port availability."""
+            import socket
+            test_results = []
+            
+            # Test imports
+            test_results.append("=== Testing A2A Dependencies ===")
+            try:
+                import any_agent
+                test_results.append("✅ any_agent imported")
+                
+                try:
+                    from any_agent.serving import A2AServingConfig
+                    from any_agent.tools import a2a_tool_async
+                    test_results.append("✅ A2A components imported successfully!")
+                except ImportError as e:
+                    test_results.append(f"❌ A2A components import failed: {e}")
+            except ImportError as e:
+                test_results.append(f"❌ any_agent not found: {e}")
+            
+            # Test ports
+            test_results.append("\n=== Testing Port Availability ===")
+            test_ports = [5001, 5002, 5003, 8001, 8002, 8080, 8888]
+            available_count = 0
+            
+            for port in test_ports:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    
+                    # Try different addresses
+                    bound = False
+                    for addr in ['127.0.0.1', 'localhost', '0.0.0.0']:
+                        try:
+                            sock.bind((addr, port))
+                            test_results.append(f"✅ Port {port} available on {addr}")
+                            bound = True
+                            available_count += 1
+                            break
+                        except:
+                            continue
+                    
+                    if not bound:
+                        test_results.append(f"❌ Port {port} not available")
+                    
+                    sock.close()
+                except Exception as e:
+                    test_results.append(f"❌ Port {port} error: {e}")
+            
+            test_results.append(f"\n📊 Summary: {available_count}/{len(test_ports)} ports available")
+            
+            # Environment info
+            test_results.append("\n=== Environment Info ===")
+            test_results.append(f"SPACE_ID: {os.getenv('SPACE_ID', 'Not on HF Spaces')}")
+            test_results.append(f"Python: {sys.version.split()[0]}")
+            
+            if available_count >= 5:
+                test_results.append("\n✅ A2A might work! Try selecting A2A mode.")
+            else:
+                test_results.append("\n❌ Not enough ports available. Use Basic Multiagent mode.")
+            
+            return "\n".join(test_results)
+        
         # No need for separate mode change handler - it happens when draft starts
         
         # Run multi-agent demo with control visibility handling
@@ -866,6 +935,13 @@ def create_gradio_interface():
             [communication_mode, app_state],
             [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input, app_state],
             show_progress=True
+        )
+        
+        # Wire up A2A test button
+        test_a2a_btn.click(
+            test_a2a_functionality,
+            [],
+            [a2a_test_output]
         )
         
         # Continue draft after user pick
