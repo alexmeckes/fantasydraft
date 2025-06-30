@@ -76,12 +76,14 @@ class EnhancedFantasyDraftApp:
             try:
                 global DynamicA2AAgentManager, cleanup_session
                 from core.dynamic_a2a_manager import DynamicA2AAgentManager, cleanup_session
+                self.real_a2a = True
             except ImportError as e:
-                # Try to use mock a2a if real one fails
+                # Fall back to simulated A2A for environments like HF Spaces
                 try:
-                    import a2a_mock  # This installs mock modules
-                    from core.dynamic_a2a_manager import DynamicA2AAgentManager, cleanup_session
-                    self.a2a_status = "⚠️ Using mock A2A mode (limited functionality)"
+                    from core.simulated_a2a_manager import SimulatedA2AAgentManager, cleanup_session
+                    DynamicA2AAgentManager = SimulatedA2AAgentManager
+                    self.real_a2a = False
+                    print("Using simulated A2A mode (real A2A not available)")
                 except ImportError as e2:
                     self.a2a_status = f"❌ A2A mode not available: {str(e)}. Please use Basic Multiagent mode."
                     self.use_real_a2a = False
@@ -98,7 +100,10 @@ class EnhancedFantasyDraftApp:
             try:
                 await self.a2a_manager.start_agents()
                 ports = self.a2a_manager.allocated_ports
-                self.a2a_status = f"✅ A2A Mode Active (Session: {self.session_id}, Ports: {ports[0]}-{ports[-1]})"
+                if hasattr(self, 'real_a2a') and not self.real_a2a:
+                    self.a2a_status = f"✅ Simulated A2A Mode Active (Session: {self.session_id}, Mock Ports: {ports[0]}-{ports[-1]})"
+                else:
+                    self.a2a_status = f"✅ A2A Mode Active (Session: {self.session_id}, Ports: {ports[0]}-{ports[-1]})"
             except RuntimeError as e:
                 # Failed to allocate ports or start agents
                 self.a2a_status = f"❌ Failed to start A2A: {str(e)}"
@@ -152,9 +157,13 @@ class EnhancedFantasyDraftApp:
         self.draft_output = "# 🏈 Mock Draft with A2A Communication\n\n"
         
         # Welcome message
+        if hasattr(self, 'real_a2a') and not self.real_a2a:
+            welcome_msg = "Welcome to the simulated A2A draft! Agents communicate using mock HTTP calls."
+        else:
+            welcome_msg = "Welcome to the A2A-powered draft! Each agent is running on its own server."
         self.draft_output += format_agent_message(
             "commissioner", "ALL",
-            "Welcome to the A2A-powered draft! Each agent is running on its own server."
+            welcome_msg
         )
         yield self.draft_output
         
@@ -566,10 +575,10 @@ def create_gradio_interface():
                             )
                             mode_info = gr.Markdown(
                                 """
-                                **Basic Multiagent** (Recommended for HF Spaces): Fast, single-process execution (✅ Multi-user safe)
-                                **A2A**: Distributed agents with dynamic ports (Experimental on HF Spaces)
+                                **Basic Multiagent** (Recommended): Fast, single-process execution (✅ Multi-user safe)
+                                **A2A**: Distributed agents mode - will use simulated A2A if real A2A is unavailable
                                 
-                                *If A2A mode fails to start, please use Basic Multiagent mode instead.*
+                                *On HF Spaces, A2A mode will automatically use simulation to provide the same experience.*
                                 """
                             )
                             
