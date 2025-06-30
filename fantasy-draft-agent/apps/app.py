@@ -971,30 +971,26 @@ def create_gradio_interface():
             
             test_results.append(f"\n📊 Summary: {available_count}/{len(test_ports)} ports available")
             
-            # 6. Try fixing a2a if needed
-            if "❌ a2a import failed" in "\n".join(test_results):
-                test_results.append("\n=== Attempting Fix ===")
+            # 6. Check any-agent version if imports failed
+            if "❌ any_agent A2A import" in "\n".join(test_results):
+                test_results.append("\n=== Version Check ===")
                 try:
-                    # Try reinstalling without deps
-                    result = subprocess.run(
-                        [sys.executable, "-m", "pip", "install", "a2a-sdk", "--no-deps", "--force-reinstall"],
-                        capture_output=True, text=True, timeout=10
-                    )
+                    result = subprocess.run([sys.executable, "-m", "pip", "show", "any-agent"], 
+                                          capture_output=True, text=True, timeout=5)
                     if result.returncode == 0:
-                        test_results.append("✅ Reinstalled a2a-sdk")
-                        # Test import again
-                        try:
-                            import importlib
-                            if 'a2a' in sys.modules:
-                                del sys.modules['a2a']
-                            import a2a
-                            test_results.append("✅ Import after reinstall: Success!")
-                        except Exception as e:
-                            test_results.append(f"❌ Import after reinstall: {e}")
-                    else:
-                        test_results.append(f"❌ Reinstall failed: {result.stderr[:200]}")
+                        version_line = [line for line in result.stdout.split('\n') if line.startswith('Version:')]
+                        if version_line:
+                            test_results.append(f"any-agent version: {version_line[0]}")
+                            # Check if version is < 0.22
+                            import re
+                            version_match = re.search(r'Version: (\d+)\.(\d+)', version_line[0])
+                            if version_match:
+                                major, minor = int(version_match.group(1)), int(version_match.group(2))
+                                if major == 0 and minor < 22:
+                                    test_results.append("⚠️ any-agent version < 0.22.0 - A2A components not available")
+                                    test_results.append("💡 Solution: Update requirements.txt to any-agent[a2a,openai]>=0.22.0")
                 except Exception as e:
-                    test_results.append(f"❌ Fix attempt error: {e}")
+                    test_results.append(f"Could not check any-agent version: {e}")
             
             # Final verdict
             if available_count >= 6 and "✅ any_agent A2A components: Success!" in "\n".join(test_results):
