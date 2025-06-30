@@ -16,7 +16,7 @@ import random
 
 # Enhanced agents not available in the reorganized structure
 USE_ENHANCED = False
-print("📝 Using standard agents")
+# Removed misleading print statement - mode is determined at runtime
 
 
 class DraftAgent:
