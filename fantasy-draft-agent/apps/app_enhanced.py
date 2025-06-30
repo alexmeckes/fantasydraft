@@ -79,25 +79,17 @@ class EnhancedFantasyDraftApp:
                 self.real_a2a = True
                 self.a2a_type = "full"
             except ImportError as e:
-                # Try lightweight A2A for HF Spaces (no grpcio)
+                # Fall back to simulated A2A
                 try:
-                    from core.lightweight_a2a_manager import LightweightA2AAgentManager, cleanup_session
-                    DynamicA2AAgentManager = LightweightA2AAgentManager
-                    self.real_a2a = True
-                    self.a2a_type = "lightweight"
-                    print("Using lightweight A2A mode (HTTP-only, no grpcio)")
+                    from core.simulated_a2a_manager import SimulatedA2AAgentManager, cleanup_session
+                    DynamicA2AAgentManager = SimulatedA2AAgentManager
+                    self.real_a2a = False
+                    self.a2a_type = "simulated"
+                    print("Using simulated A2A mode (real A2A not available)")
                 except ImportError as e2:
-                    # Fall back to simulated A2A
-                    try:
-                        from core.simulated_a2a_manager import SimulatedA2AAgentManager, cleanup_session
-                        DynamicA2AAgentManager = SimulatedA2AAgentManager
-                        self.real_a2a = False
-                        self.a2a_type = "simulated"
-                        print("Using simulated A2A mode (real A2A not available)")
-                    except ImportError as e3:
-                        self.a2a_status = f"❌ A2A mode not available: {str(e)}. Please use Basic Multiagent mode."
-                        self.use_real_a2a = False
-                        return self.a2a_status
+                    self.a2a_status = f"❌ A2A mode not available: {str(e)}. Please use Basic Multiagent mode."
+                    self.use_real_a2a = False
+                    return self.a2a_status
             
             # Generate unique session ID if needed
             if not self.session_id:
@@ -596,12 +588,9 @@ def create_gradio_interface():
                             mode_info = gr.Markdown(
                                 """
                                 **Basic Multiagent** (Recommended): Fast, single-process execution (✅ Multi-user safe)
-                                **A2A**: Distributed agents mode with automatic fallback:
-                                - Full A2A: gRPC + HTTP protocol (requires grpcio)
-                                - Lightweight A2A: HTTP-only (works on HF Spaces!)
-                                - Simulated A2A: Mock HTTP calls (fallback)
+                                **A2A**: Distributed agents on HTTP servers (requires a2a-sdk package)
                                 
-                                *A2A mode will automatically select the best available option.*
+                                *If A2A mode fails to start, please use Basic Multiagent mode.*
                                 """
                             )
                             
@@ -1007,28 +996,11 @@ def create_gradio_interface():
                 except Exception as e:
                     test_results.append(f"❌ Fix attempt error: {e}")
             
-            # Test lightweight A2A requirements
-            test_results.append("\n=== Lightweight A2A Test ===")
-            try:
-                import httpx
-                import fastapi
-                import uvicorn
-                test_results.append("✅ HTTP dependencies available (httpx, fastapi, uvicorn)")
-                lightweight_ready = True
-            except ImportError as e:
-                test_results.append(f"❌ Missing HTTP dependencies: {e}")
-                lightweight_ready = False
-            
             # Final verdict
-            if available_count >= 6:
-                if "✅ any_agent A2A components: Success!" in "\n".join(test_results):
-                    test_results.append("\n✅ Full A2A available! A2A mode will use the complete protocol.")
-                elif lightweight_ready:
-                    test_results.append("\n✅ Lightweight A2A available! A2A mode will use HTTP-only servers.")
-                else:
-                    test_results.append("\n⚠️ Only Simulated A2A available. A2A mode will use mock communication.")
+            if available_count >= 6 and "✅ any_agent A2A components: Success!" in "\n".join(test_results):
+                test_results.append("\n✅ A2A should work! Try selecting A2A mode.")
             else:
-                test_results.append("\n❌ Not enough ports available. Use Basic Multiagent mode.")
+                test_results.append("\n❌ A2A requirements not met. Use Basic Multiagent mode.")
             
             return "\n".join(test_results)
         

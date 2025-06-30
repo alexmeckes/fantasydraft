@@ -32,15 +32,7 @@ if os.getenv("SPACE_ID"):
         print("✅ Full A2A dependencies are available! A2A mode will work.")
     except ImportError as e:
         print(f"⚠️ A2A components not available from any_agent: {e}")
-        # Check if lightweight A2A can work
-        try:
-            import httpx
-            import fastapi
-            import uvicorn
-            print("✅ Lightweight A2A dependencies available! A2A mode will work using HTTP-only.")
-            os.environ["A2A_MODE"] = "lightweight"
-        except ImportError:
-            print("✅ Basic Multiagent mode will be used.")
+        print("✅ Basic Multiagent mode will be used instead.")
             
 else:
     # Not on HF Spaces
