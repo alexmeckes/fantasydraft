@@ -32,7 +32,17 @@ if os.getenv("SPACE_ID"):
         print("✅ Full A2A dependencies are available! A2A mode will work.")
     except ImportError as e:
         print(f"⚠️ A2A components not available from any_agent: {e}")
-        print("✅ Basic Multiagent mode will be used instead.")
+        # Try to fix by reinstalling any-agent with a2a extra
+        print("📦 Attempting to install any-agent[a2a]...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "any-agent[a2a,openai]==0.21.1", "--force-reinstall"])
+            # Try import again
+            from any_agent.serving import A2AServingConfig
+            from any_agent.tools import a2a_tool_async
+            print("✅ Successfully installed! A2A mode will work.")
+        except Exception as e2:
+            print(f"❌ Failed to install any-agent[a2a]: {e2}")
+            print("✅ Basic Multiagent mode will be used instead.")
             
 else:
     # Not on HF Spaces
