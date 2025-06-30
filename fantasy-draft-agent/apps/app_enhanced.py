@@ -77,9 +77,15 @@ class EnhancedFantasyDraftApp:
                 global DynamicA2AAgentManager, cleanup_session
                 from core.dynamic_a2a_manager import DynamicA2AAgentManager, cleanup_session
             except ImportError as e:
-                self.a2a_status = f"❌ A2A mode not available: {str(e)}. Please use Basic Multiagent mode."
-                self.use_real_a2a = False
-                return self.a2a_status
+                # Try to use mock a2a if real one fails
+                try:
+                    import a2a_mock  # This installs mock modules
+                    from core.dynamic_a2a_manager import DynamicA2AAgentManager, cleanup_session
+                    self.a2a_status = "⚠️ Using mock A2A mode (limited functionality)"
+                except ImportError as e2:
+                    self.a2a_status = f"❌ A2A mode not available: {str(e)}. Please use Basic Multiagent mode."
+                    self.use_real_a2a = False
+                    return self.a2a_status
             
             # Generate unique session ID if needed
             if not self.session_id:
@@ -856,76 +862,124 @@ def create_gradio_interface():
         def test_a2a_functionality():
             """Test A2A dependencies and port availability."""
             import socket
+            import subprocess
+            import importlib.util
+            import site
+            
             test_results = []
             
-            # Test imports
-            test_results.append("=== Testing A2A Dependencies ===")
-            try:
-                import any_agent
-                test_results.append("✅ any_agent imported")
-                
-                # Test the critical a2a module first
-                try:
-                    import a2a
-                    test_results.append("✅ a2a module found (from a2a-sdk)")
-                    try:
-                        import a2a.types
-                        test_results.append("✅ a2a.types imported")
-                    except ImportError as e:
-                        test_results.append(f"❌ a2a.types failed: {e}")
-                except ImportError:
-                    test_results.append("❌ a2a module NOT found - this is why A2A fails!")
-                    test_results.append("   The a2a-sdk package should provide the 'a2a' module")
-                
-                try:
-                    from any_agent.serving import A2AServingConfig
-                    from any_agent.tools import a2a_tool_async
-                    test_results.append("✅ A2A components imported successfully!")
-                except ImportError as e:
-                    test_results.append(f"❌ A2A components import failed: {e}")
-            except ImportError as e:
-                test_results.append(f"❌ any_agent not found: {e}")
+            # 1. Python Environment
+            test_results.append("=== Python Environment ===")
+            test_results.append(f"Python: {sys.version.split()[0]}")
+            test_results.append(f"Platform: {sys.platform}")
+            test_results.append(f"SPACE_ID: {os.getenv('SPACE_ID', 'Not on HF Spaces')}")
             
-            # Test ports
-            test_results.append("\n=== Testing Port Availability ===")
-            test_ports = [5001, 5002, 5003, 8001, 8002, 8080, 8888]
+            # 2. Check a2a-sdk installation
+            test_results.append("\n=== Package Installation ===")
+            try:
+                result = subprocess.run([sys.executable, "-m", "pip", "show", "a2a-sdk"], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    version_line = [line for line in result.stdout.split('\n') if line.startswith('Version:')]
+                    location_line = [line for line in result.stdout.split('\n') if line.startswith('Location:')]
+                    test_results.append(f"✅ a2a-sdk installed: {version_line[0] if version_line else 'Unknown version'}")
+                    if location_line:
+                        test_results.append(f"   {location_line[0]}")
+                else:
+                    test_results.append("❌ a2a-sdk NOT installed according to pip")
+            except Exception as e:
+                test_results.append(f"❌ Error checking pip: {e}")
+            
+            # 3. Module search
+            test_results.append("\n=== Module Search ===")
+            a2a_spec = importlib.util.find_spec("a2a")
+            if a2a_spec:
+                test_results.append(f"✅ a2a module found at: {a2a_spec.origin}")
+            else:
+                test_results.append("❌ a2a module NOT found by importlib")
+                # Manual search
+                for path in site.getsitepackages():
+                    if os.path.exists(path):
+                        a2a_path = os.path.join(path, "a2a")
+                        if os.path.exists(a2a_path):
+                            test_results.append(f"   Found a2a directory at: {a2a_path}")
+            
+            # 4. Import tests
+            test_results.append("\n=== Import Tests ===")
+            
+            # Basic a2a import
+            try:
+                import a2a
+                test_results.append(f"✅ import a2a: Success")
+                try:
+                    import a2a.types
+                    test_results.append("✅ import a2a.types: Success")
+                    try:
+                        from a2a.types import AgentSkill
+                        test_results.append("✅ from a2a.types import AgentSkill: Success")
+                    except ImportError as e:
+                        test_results.append(f"❌ AgentSkill import: {e}")
+                except ImportError as e:
+                    test_results.append(f"❌ a2a.types import: {e}")
+            except ImportError as e:
+                test_results.append(f"❌ a2a import failed: {e}")
+            
+            # any_agent A2A imports
+            try:
+                from any_agent.serving import A2AServingConfig
+                from any_agent.tools import a2a_tool_async
+                test_results.append("✅ any_agent A2A components: Success!")
+            except ImportError as e:
+                test_results.append(f"❌ any_agent A2A import: {e}")
+            
+            # 5. Port availability
+            test_results.append("\n=== Port Availability ===")
+            test_ports = [5001, 5002, 5003, 5004, 5005, 5006]
             available_count = 0
             
             for port in test_ports:
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    
-                    # Try different addresses
-                    bound = False
-                    for addr in ['127.0.0.1', 'localhost', '0.0.0.0']:
-                        try:
-                            sock.bind((addr, port))
-                            test_results.append(f"✅ Port {port} available on {addr}")
-                            bound = True
-                            available_count += 1
-                            break
-                        except:
-                            continue
-                    
-                    if not bound:
-                        test_results.append(f"❌ Port {port} not available")
-                    
+                    sock.bind(('127.0.0.1', port))
+                    test_results.append(f"✅ Port {port} available")
+                    available_count += 1
                     sock.close()
-                except Exception as e:
-                    test_results.append(f"❌ Port {port} error: {e}")
+                except Exception:
+                    test_results.append(f"❌ Port {port} not available")
             
             test_results.append(f"\n📊 Summary: {available_count}/{len(test_ports)} ports available")
             
-            # Environment info
-            test_results.append("\n=== Environment Info ===")
-            test_results.append(f"SPACE_ID: {os.getenv('SPACE_ID', 'Not on HF Spaces')}")
-            test_results.append(f"Python: {sys.version.split()[0]}")
+            # 6. Try fixing a2a if needed
+            if "❌ a2a import failed" in "\n".join(test_results):
+                test_results.append("\n=== Attempting Fix ===")
+                try:
+                    # Try reinstalling without deps
+                    result = subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "a2a-sdk", "--no-deps", "--force-reinstall"],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    if result.returncode == 0:
+                        test_results.append("✅ Reinstalled a2a-sdk")
+                        # Test import again
+                        try:
+                            import importlib
+                            if 'a2a' in sys.modules:
+                                del sys.modules['a2a']
+                            import a2a
+                            test_results.append("✅ Import after reinstall: Success!")
+                        except Exception as e:
+                            test_results.append(f"❌ Import after reinstall: {e}")
+                    else:
+                        test_results.append(f"❌ Reinstall failed: {result.stderr[:200]}")
+                except Exception as e:
+                    test_results.append(f"❌ Fix attempt error: {e}")
             
-            if available_count >= 5:
-                test_results.append("\n✅ A2A might work! Try selecting A2A mode.")
+            # Final verdict
+            if available_count >= 6 and "✅ any_agent A2A components: Success!" in "\n".join(test_results):
+                test_results.append("\n✅ A2A should work! Try selecting A2A mode.")
             else:
-                test_results.append("\n❌ Not enough ports available. Use Basic Multiagent mode.")
+                test_results.append("\n❌ A2A requirements not met. Use Basic Multiagent mode.")
             
             return "\n".join(test_results)
         
