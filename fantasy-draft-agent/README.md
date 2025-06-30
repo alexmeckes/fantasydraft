@@ -20,7 +20,7 @@ Experience AI agents with distinct personalities competing in a fantasy football
 - **6 AI Agents** with unique strategies (Zero RB, Best Player Available, Robust RB, etc.)
 - **Two Communication Modes**:
   - **Basic Multiagent**: Fast, single-process execution
-  - **A2A Mode**: Distributed agents on HTTP servers (limited on free tier)
+  - **A2A Mode**: Distributed agents with automatic fallback (Full → Lightweight → Simulated)
 - **Interactive Participation**: Draft alongside AI with strategic advice
 - **Real-time Communication**: Agents comment and react to picks
 - **Multi-User Support**: Each user gets their own draft session
@@ -32,8 +32,11 @@ Experience AI agents with distinct personalities competing in a fantasy football
 
 ## About Communication Modes
 
-- **Basic Multiagent (Recommended)**: Works perfectly on HF Spaces! All agents run in a single process with fast, reliable communication.
-- **A2A Mode (Experimental)**: Distributed agents on separate servers. Due to dependency issues with `a2a-sdk` on HF Spaces, this mode may not work. Basic Multiagent provides the same great experience!
+- **Basic Multiagent (Recommended)**: Works perfectly everywhere! All agents run in a single process with fast, reliable communication.
+- **A2A Mode (Adaptive)**: Automatically selects the best distributed mode:
+  - **Full A2A**: Complete protocol with gRPC (when available)
+  - **Lightweight A2A**: HTTP-only servers (works on HF Spaces!)
+  - **Simulated A2A**: Mock distributed experience (fallback)
 
 ## About
 

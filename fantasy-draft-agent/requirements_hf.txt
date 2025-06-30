@@ -1,0 +1,22 @@
+# Special requirements for Hugging Face Spaces
+# Avoids grpcio dependencies that won't install properly
+
+# Install any-agent WITHOUT a2a extras
+any-agent[openai]>=0.21.0
+
+# Direct HTTP dependencies
+httpx>=0.24.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+sse-starlette>=1.6.0
+
+# App dependencies
+python-dotenv
+pydantic>=2.0.0
+gradio>=4.0.0
+nest-asyncio
+aiohttp
+typing-extensions
+
+# Note: We'll use httpx directly for A2A-like communication
+# without the heavyweight grpcio dependencies 
