@@ -14,7 +14,7 @@ The Fantasy Draft Multi-Agent Demo showcases a sophisticated multi-agent system 
 ```
 fantasy-draft-agent/
 ├── apps/
-│   ├── app_enhanced.py          # Main Gradio interface with A2A support
+│   ├── app.py                   # Main Gradio interface with A2A support
 │   ├── multiagent_draft.py      # Core draft logic and agent management
 │   └── multiagent_scenarios.py  # UI formatting and visualization
 ├── core/

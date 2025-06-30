@@ -25,7 +25,7 @@ This guide covers everything you need to set up and run the Fantasy Draft Multi-
 
 4. **Run the app**
    ```bash
-   python apps/app_enhanced.py
+   python apps/app.py
    ```
 
 ## Detailed Setup
@@ -69,13 +69,13 @@ deactivate
 2. **Port Configuration**: 
    - Default web interface: Port 7860
    - A2A mode uses dynamic ports (5000-9000 range)
-   - Modify in `app_enhanced.py` if needed
+   - Modify in `apps/app.py` if needed
 
 ## Running Different Modes
 
 ### Basic Mode (Recommended for Development)
 ```bash
-python apps/app_enhanced.py
+python apps/app.py
 ```
 - Single process, fast execution
 - Good for testing and development
@@ -117,7 +117,7 @@ python apps/app_enhanced.py
    - Verify key starts with `sk-`
 
 2. **Port already in use**
-   - Change port in `app_enhanced.py`: `demo.launch(server_port=7861)`
+   - Change port in `apps/app.py`: `demo.launch(server_port=7861)`
    - Or kill the process using the port
 
 3. **Module not found errors**

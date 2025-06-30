@@ -35,7 +35,16 @@ if os.getenv("SPACE_ID"):
         # Try to fix by reinstalling any-agent with a2a extra
         print("📦 Attempting to install any-agent[a2a]...")
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "any-agent[a2a,openai]>=0.22.0", "--force-reinstall"])
+            # Install or upgrade any-agent with the required extras. We intentionally
+            # avoid pinning to an older version here because versions prior to
+            # 0.22.0 do not expose `any_agent.serving`.
+            subprocess.check_call([
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "any-agent[a2a,openai]>=0.22.0",
+            ])
             # Try import again
             from any_agent.serving import A2AServingConfig
             from any_agent.tools import a2a_tool_async
@@ -48,8 +57,8 @@ else:
     # Not on HF Spaces
     print("🖥️ Running locally...")
 
-# Import and run the enhanced app
-from apps.app_enhanced import main
+# Import and run the main app
+from apps.app import main
 
 if __name__ == "__main__":
     main() 

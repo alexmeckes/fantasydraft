@@ -27,7 +27,7 @@ from core.a2a_helpers import (
 )
 
 
-# A2A Output model (same as in app_enhanced.py)
+# A2A Output model (same as in apps/app.py)
 class A2AOutput(BaseModel):
     """Combined output type for A2A agents."""
     type: str  # "pick" or "comment"

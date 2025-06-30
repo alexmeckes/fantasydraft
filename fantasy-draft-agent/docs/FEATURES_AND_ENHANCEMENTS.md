@@ -166,7 +166,7 @@ AGENT_START_DELAY = 0.5         # A2A startup spacing
 - Adjust delays in `constants.py`
 - Modify agent strategies in `agent.py`
 - Add players to `data.py`
-- Customize UI in `app_enhanced.py`
+- Customize UI in `apps/app.py`
 
 ## Future Possibilities
 - WebSocket real-time updates
