@@ -1,5 +1,5 @@
 # Install order matters! 
-# Last updated: 2024-01-15 16:45 - Testing quoted extras syntax for HF Spaces
+# Last updated: 2024-01-15 17:00 - Using pre-requirements.txt for any-agent extras
 
 # Step 1: Core dependencies
 python-dotenv
@@ -12,10 +12,8 @@ aiohttp
 # Pin to specific version for consistency
 a2a-sdk==0.2.9
 
-# Step 3: Install any-agent with extras
-# Version 0.22+ required for any_agent.serving module
-# Using quotes to ensure proper parsing by HF Spaces
-"any-agent[a2a,openai]>=0.22.0"
+# Step 3: any-agent is now installed via pre-requirements.txt
+# This ensures it's installed with the [a2a,openai] extras before other dependencies
 
 # Step 4: Additional dependencies (if not pulled in by any-agent)
 # These might already be installed by any-agent[openai] but we list them to be sure

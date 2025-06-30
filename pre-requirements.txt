@@ -1,0 +1,4 @@
+# Pre-requirements - installed before main requirements.txt
+# Force installation of any-agent with A2A extras
+pip>=22.0
+any-agent[a2a,openai]>=0.22.0 
