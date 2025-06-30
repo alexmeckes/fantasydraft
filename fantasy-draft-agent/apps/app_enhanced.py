@@ -32,7 +32,10 @@ from core.a2a_helpers import (
     extract_task_id,
     format_available_players
 )
-from core.dynamic_a2a_manager import DynamicA2AAgentManager, cleanup_session
+# Lazy import A2A components to avoid import errors on HF Spaces
+DynamicA2AAgentManager = None
+cleanup_session = None
+
 from apps.multiagent_draft import MultiAgentMockDraft
 from apps.multiagent_scenarios import (
     run_interactive_mock_draft,
@@ -72,6 +75,15 @@ class EnhancedFantasyDraftApp:
         self.use_real_a2a = use_a2a
         
         if use_a2a:
+            # Lazy import A2A components only when needed
+            try:
+                global DynamicA2AAgentManager, cleanup_session
+                from core.dynamic_a2a_manager import DynamicA2AAgentManager, cleanup_session
+            except ImportError as e:
+                self.a2a_status = f"❌ A2A mode not available: {str(e)}. Please use Basic Multiagent mode."
+                self.use_real_a2a = False
+                return self.a2a_status
+            
             # Generate unique session ID if needed
             if not self.session_id:
                 import uuid
@@ -90,7 +102,7 @@ class EnhancedFantasyDraftApp:
                 self.use_real_a2a = False
                 self.a2a_manager = None
         else:
-            if self.a2a_manager:
+            if self.a2a_manager and cleanup_session:
                 await cleanup_session(self.a2a_manager)
                 self.a2a_manager = None
             self.a2a_status = "✅ Basic Multiagent Mode Active (Using built-in communication)"
@@ -544,17 +556,17 @@ def create_gradio_interface():
                         with gr.Column():
                             gr.Markdown("### 🔧 Communication Mode")
                             communication_mode = gr.Radio(
-                                ["A2A", "Basic Multiagent"],
-                                value="A2A",
+                                ["Basic Multiagent", "A2A"],
+                                value="Basic Multiagent",
                                 label="Select how agents communicate",
-                                info="A2A: Distributed agents with dynamic ports (Recommended) | Basic Multiagent: Fast, single-process"
+                                info="Basic Multiagent: Fast, reliable (Recommended) | A2A: Distributed agents (Advanced)"
                             )
                             mode_info = gr.Markdown(
                                 """
-                                **A2A** (Recommended): Distributed agents with dynamic ports (✅ Multi-user safe!)
-                                **Basic Multiagent**: Fast, single-process execution (✅ Multi-user safe)
+                                **Basic Multiagent** (Recommended for HF Spaces): Fast, single-process execution (✅ Multi-user safe)
+                                **A2A**: Distributed agents with dynamic ports (May not work on HF Spaces due to dependencies)
                                 
-                                *Each A2A session gets unique ports automatically allocated in the 5000-9000 range.*
+                                *If A2A mode fails to start, please use Basic Multiagent mode instead.*
                                 """
                             )
                     
@@ -847,7 +859,7 @@ def create_gradio_interface():
             if app is None:
                 app = EnhancedFantasyDraftApp()
             
-            use_a2a = mode == "A2A"
+            use_a2a = (mode == "A2A")
             for output in app.run_multiagent_demo(use_a2a):
                 result = check_user_turn(output, app)
                 yield result + (app,)  # Return the app state as the last element
