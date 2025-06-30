@@ -35,7 +35,7 @@ if os.getenv("SPACE_ID"):
         # Try to fix by reinstalling any-agent with a2a extra
         print("📦 Attempting to install any-agent[a2a]...")
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "any-agent[a2a,openai]==0.21.1", "--force-reinstall"])
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "any-agent[a2a,openai]>=0.22.0", "--force-reinstall"])
             # Try import again
             from any_agent.serving import A2AServingConfig
             from any_agent.tools import a2a_tool_async

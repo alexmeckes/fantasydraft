@@ -23,7 +23,7 @@ python -c "import a2a; print('✅ a2a module imports successfully!')" || {
 
 # Install any-agent with both a2a and openai extras
 echo "Installing any-agent with a2a and openai extras..."
-python -m pip install "any-agent[a2a,openai]==0.21.1"
+python -m pip install "any-agent[a2a,openai]>=0.22.0"
 
 # Install other dependencies
 echo "Installing remaining dependencies..."

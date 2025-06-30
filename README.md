@@ -32,6 +32,8 @@ This project showcases:
 
 ## Quick Start
 
+> **Note for Hugging Face Spaces**: The `requirements.txt` at the repository root is for HF Spaces deployment. The main application code is in `fantasy-draft-agent/`.
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/alexmeckes/fantasydraft.git

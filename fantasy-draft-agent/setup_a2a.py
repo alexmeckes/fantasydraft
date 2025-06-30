@@ -52,7 +52,7 @@ def main():
     
     # Step 4: Install any-agent with both a2a and openai extras
     print("\n4. Installing any-agent with a2a and openai extras...")
-    install_package("any-agent[a2a,openai]>=0.21.0")
+    install_package("any-agent[a2a,openai]>=0.22.0")
     
     print("\n✅ Setup complete!")
 
