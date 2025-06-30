@@ -864,6 +864,19 @@ def create_gradio_interface():
                 import any_agent
                 test_results.append("✅ any_agent imported")
                 
+                # Test the critical a2a module first
+                try:
+                    import a2a
+                    test_results.append("✅ a2a module found (from a2a-sdk)")
+                    try:
+                        import a2a.types
+                        test_results.append("✅ a2a.types imported")
+                    except ImportError as e:
+                        test_results.append(f"❌ a2a.types failed: {e}")
+                except ImportError:
+                    test_results.append("❌ a2a module NOT found - this is why A2A fails!")
+                    test_results.append("   The a2a-sdk package should provide the 'a2a' module")
+                
                 try:
                     from any_agent.serving import A2AServingConfig
                     from any_agent.tools import a2a_tool_async

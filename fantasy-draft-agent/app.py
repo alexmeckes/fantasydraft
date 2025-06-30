@@ -11,6 +11,8 @@ import subprocess
 if os.getenv("SPACE_ID"):
     print("🤗 Running on Hugging Face Spaces...")
     
+
+    
     # Try to import A2A components
     try:
         from any_agent.serving import A2AServingConfig
@@ -18,31 +20,32 @@ if os.getenv("SPACE_ID"):
     except ImportError:
         print("⚠️ A2A dependencies not found, attempting to install...")
         try:
-            # Install any-agent with A2A extras explicitly
+            # First, ensure a2a-sdk is properly installed (it provides the 'a2a' module)
+            print("Installing a2a-sdk first...")
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install", 
+                "--force-reinstall",
+                "a2a-sdk>=0.2.8"
+            ])
+            
+            # Verify the a2a module is available
+            try:
+                import a2a
+                print("✅ a2a module now available")
+            except:
+                print("❌ a2a module still not available after installing a2a-sdk")
+            
+            # Now install any-agent[a2a] without --no-deps so it gets what it needs
             print("Installing any-agent[a2a]...")
             subprocess.check_call([
                 sys.executable, "-m", "pip", "install", 
-                "--force-reinstall", "--no-deps", 
+                "--force-reinstall",
                 "any-agent[a2a]"
             ])
             
-            # Also ensure key A2A dependencies
-            a2a_deps = [
-                "a2a-sdk>=0.2.8",
-                "grpcio>=1.60",
-                "grpcio-tools>=1.60",
-                "grpcio-reflection>=1.7.0"
-            ]
-            
-            for dep in a2a_deps:
-                try:
-                    subprocess.check_call([
-                        sys.executable, "-m", "pip", "install", 
-                        "--no-deps", dep
-                    ])
-                    print(f"✅ Installed {dep}")
-                except:
-                    print(f"⚠️ Could not install {dep}")
+            # Test the import again
+            from any_agent.serving import A2AServingConfig
+            print("✅ A2A components now available!")
                     
         except Exception as e:
             print(f"❌ Could not install A2A dependencies: {e}")
