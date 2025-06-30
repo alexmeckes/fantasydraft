@@ -30,9 +30,10 @@ Experience AI agents with distinct personalities competing in a fantasy football
 1. Add your OpenAI API key in **Settings → Repository secrets** as `OPENAI_API_KEY`
 2. The app will start automatically once deployed
 
-## Note on A2A Mode
+## About Communication Modes
 
-A2A mode requires ports 5000-9000 for agent servers. On Hugging Face Spaces free tier, port availability may be limited. If A2A mode fails, the app will suggest using Basic Multiagent mode instead.
+- **Basic Multiagent (Recommended)**: Works perfectly on HF Spaces! All agents run in a single process with fast, reliable communication.
+- **A2A Mode (Experimental)**: Distributed agents on separate servers. Due to dependency issues with `a2a-sdk` on HF Spaces, this mode may not work. Basic Multiagent provides the same great experience!
 
 ## About
 
