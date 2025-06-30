@@ -45,11 +45,8 @@ from apps.multiagent_scenarios import (
     create_mock_draft_visualization
 )
 
-# Import A2A components
-from pydantic import BaseModel
-from any_agent import AgentConfig, AnyAgent
-from any_agent.serving import A2AServingConfig
-from any_agent.tools import a2a_tool_async
+# A2A components will be imported lazily when needed
+# to avoid import errors on Hugging Face Spaces
 
 # Apply nest_asyncio for async in Gradio
 nest_asyncio.apply()
