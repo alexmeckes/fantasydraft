@@ -273,7 +273,7 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     # On HF Spaces, we might need to use 127.0.0.1 for internal communication
                     host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
                     tool_url = f"http://{host}:{config['port']}"
-                    # Use httpx with connection pooling limits
+                    # Use httpx timeout for HF Spaces
                     import httpx
                     timeout_config = httpx.Timeout(
                         timeout=DEFAULT_TIMEOUT,
@@ -283,20 +283,11 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                         pool=30.0      # Pool timeout
                     )
                     
-                    # Create custom HTTP client with connection limits
-                    limits = httpx.Limits(
-                        max_keepalive_connections=2,  # Limit persistent connections
-                        max_connections=5,            # Total connection limit
-                        keepalive_expiry=30.0        # Close idle connections after 30s
-                    )
-                    
+                    # Note: limits and http2 settings can't be passed to a2a_tool_async
+                    # They would need to be set at the client creation level
                     self.agent_tools[team_num] = await a2a_tool_async(
                         tool_url,
-                        http_kwargs={
-                            "timeout": timeout_config,
-                            "limits": limits,
-                            "http2": False  # Disable HTTP/2 for stability
-                        }
+                        http_kwargs={"timeout": timeout_config}
                     )
                     print(f"✅ Created A2A tool for Team {team_num} at {tool_url}")
                     
@@ -404,11 +395,10 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                 tool_url = f"http://127.0.0.1:{config['port']}"
                 import httpx
                 timeout_config = httpx.Timeout(timeout=90.0, connect=30.0, read=90.0, write=30.0, pool=30.0)
-                limits = httpx.Limits(max_keepalive_connections=2, max_connections=5, keepalive_expiry=30.0)
                 
                 self.agent_tools[team_num] = await a2a_tool_async(
                     tool_url,
-                    http_kwargs={"timeout": timeout_config, "limits": limits, "http2": False}
+                    http_kwargs={"timeout": timeout_config}
                 )
                 
                 print(f"✅ Restarted Team {team_num} on port {config['port']}")
