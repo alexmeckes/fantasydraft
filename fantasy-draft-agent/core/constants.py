@@ -7,7 +7,7 @@ TYPING_DELAY_SECONDS = 0.5
 MESSAGE_DELAY_SECONDS = 1.0
 AGENT_START_DELAY = 5.0  # Increased from 3.0 to give agents more time to fully initialize
 AGENT_STARTUP_WAIT = 1.0  # Increased from 0.5 to ensure each agent is ready
-DEFAULT_TIMEOUT = 30.0
+DEFAULT_TIMEOUT = 60.0  # Increased for HF Spaces compatibility
 
 # Comment configuration
 MAX_COMMENTS_PER_PICK = 2

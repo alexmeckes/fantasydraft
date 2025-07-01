@@ -10,7 +10,7 @@ aiohttp
 
 # Step 2: Install a2a-sdk (provides 'a2a' module)
 # Pin to specific version for consistency
-a2a-sdk==0.2.9
+a2a-sdk==0.2.10
 
 # Step 3: any-agent is now installed via pre-requirements.txt
 # This ensures it's installed with the [a2a,openai] extras before other dependencies

@@ -294,16 +294,25 @@ Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMIN
             result = await self.agent_tools[team_num](prompt, task_id=task_id)
             
             # Extract and store task_id
-            task_id = extract_task_id(result)
-            if task_id:
-                self.task_ids[team_num] = task_id
+            new_task_id = extract_task_id(result)
+            if new_task_id:
+                self.task_ids[team_num] = new_task_id
             
             # Parse the response
             output = parse_a2a_response(result, A2AOutput)
+            if output:
+                print(f"✅ Team {team_num} pick: {output.player_name}")
+            else:
+                print(f"❌ Failed to parse response from Team {team_num}")
+                if isinstance(result, str) and len(result) > 100:
+                    # Show compact preview for debugging
+                    print(f"   Response format issue - check a2a_helpers.py parsing")
             return output
                 
         except Exception as e:
-            print(f"Error getting pick from Team {team_num}: {e}")
+            print(f"❌ Error getting pick from Team {team_num}: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     async def get_comment(self, commenting_team: int, picking_team: int,

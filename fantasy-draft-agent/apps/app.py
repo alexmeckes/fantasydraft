@@ -405,7 +405,12 @@ class EnhancedFantasyDraftApp:
         total_picks = len([p for picks in self.current_draft.draft_board.values() for p in picks])
         current_round = ((total_picks - 1) // 6) + 1
         
-        loop = asyncio.get_event_loop()
+        # Get or create event loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         
         # Continue from current position
         for round_num in range(current_round, 4):
@@ -580,24 +585,19 @@ def create_gradio_interface():
                         with gr.Column():
                             gr.Markdown("### 🔧 Communication Mode")
                             communication_mode = gr.Radio(
-                                ["Basic Multiagent", "A2A"],
-                                value="Basic Multiagent",
+                                ["A2A", "Basic Multiagent"],
+                                value="A2A",
                                 label="Select how agents communicate",
-                                info="Basic Multiagent: Fast, reliable (Recommended) | A2A: Distributed agents (Advanced)"
+                                info="A2A: Distributed agents on HTTP servers (Default) | Basic Multiagent: Single-process execution"
                             )
                             mode_info = gr.Markdown(
                                 """
-                                **Basic Multiagent** (Recommended): Fast, single-process execution (✅ Multi-user safe)
-                                **A2A**: Distributed agents on HTTP servers (requires a2a-sdk package)
+                                **A2A** (Default): Each agent runs on its own HTTP server with true isolation
+                                **Basic Multiagent**: Fast, single-process execution for quick testing
                                 
-                                *If A2A mode fails to start, please use Basic Multiagent mode.*
+                                *A2A mode provides the most realistic multi-agent experience.*
                                 """
                             )
-                            
-                            # Add A2A test button for debugging
-                            with gr.Accordion("🔧 A2A Debugging (Advanced)", open=False):
-                                test_a2a_btn = gr.Button("Test A2A Dependencies & Ports", size="sm")
-                                a2a_test_output = gr.Textbox(label="Test Results", lines=10, interactive=False)
                     
                     # Show agent cards
                     gr.Markdown("""
@@ -710,8 +710,6 @@ def create_gradio_interface():
                     * **Real-time trash talk** between picks
                     * **Strategic advisor** guides your selections
                     * **Memory system** - agents remember and reference earlier picks
-                    
-                    Ready to experience the most realistic AI draft room?
                     """)
                     
                     # Start button at the bottom
@@ -740,6 +738,39 @@ def create_gradio_interface():
                                     interactive=False
                                 )
                 
+                # Debug Tab
+                with gr.TabItem("🔍 Debug"):
+                    gr.Markdown("""
+                    ## A2A Debugging Tools
+                    
+                    Use these tools to test A2A functionality and diagnose any issues.
+                    """)
+                    
+                    with gr.Row():
+                        with gr.Column():
+                            test_a2a_btn = gr.Button("🧪 Test A2A Dependencies & Ports", variant="primary", size="lg")
+                            
+                    a2a_test_output = gr.Textbox(
+                        label="Test Results", 
+                        lines=20, 
+                        interactive=False,
+                        elem_classes=["monospace"]
+                    )
+                    
+                    gr.Markdown("""
+                    ### What this test checks:
+                    - ✓ Python environment and version
+                    - ✓ a2a-sdk package installation
+                    - ✓ Module imports (a2a, any_agent)
+                    - ✓ Port availability for agents
+                    - ✓ A2A agent startup capability
+                    
+                    ### Common issues:
+                    - **Import errors**: Check if a2a-sdk is properly installed
+                    - **Port conflicts**: Other services might be using ports 5000-9000
+                    - **Timeout errors**: Network latency on cloud deployments
+                    """)
+                
                 # How It Works Tab
                 with gr.TabItem("🔧 How It Works"):
                     gr.Markdown("""
@@ -766,18 +797,19 @@ def create_gradio_interface():
                     
                     **Two Modes Available:**
                     
-                    #### 1. A2A Mode (Default)
+                    #### 1. A2A Mode (Default) ✨
                     - **Distributed Architecture**: Each agent runs on its own HTTP server
-                    - **Dynamic Ports**: Each session gets unique ports automatically
+                    - **Dynamic Ports**: Each session gets unique ports automatically (5000-9000 range)
                     - **True Isolation**: No shared memory, HTTP communication only
                     - **Production Ready**: Scalable to multiple machines
-                    - **Uses a2a_tool_async**: Official any-agent A2A protocol
+                    - **Real HTTP Calls**: Agents communicate via actual network requests
+                    - **Task Continuity**: Conversation context maintained across turns
                     
                     #### 2. Basic Multiagent Mode
                     - Single process, direct method calls
                     - Shared memory between agents
                     - Fast execution, simple debugging
-                    - Perfect for quick testing and development
+                    - Fallback option if A2A requirements aren't met
                     
                     ### 📊 Architecture Flow
                     """)
@@ -1078,6 +1110,12 @@ def create_gradio_interface():
         
         #start-button {
             margin-top: 20px;
+        }
+        
+        /* Monospace font for debug output */
+        .monospace textarea {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
         }
         """
         

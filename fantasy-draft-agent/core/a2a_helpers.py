@@ -25,10 +25,36 @@ def parse_a2a_response(result: Any, output_class: type[BaseModel]) -> Optional[B
     """
     # Handle string responses
     if isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except:
-            return None
+        # First check if it's the Status/Message/TaskId format
+        if "Status:" in result and "Message:" in result:
+            try:
+                # Extract the JSON from the Message: line
+                lines = result.strip().split('\n')
+                for i, line in enumerate(lines):
+                    if line.startswith("Message:"):
+                        # Get the JSON part after "Message: "
+                        json_str = line[8:].strip()
+                        # If the JSON continues on multiple lines, collect them
+                        if i + 1 < len(lines) and not lines[i + 1].startswith(("TaskId:", "Timestamp:")):
+                            # Continue collecting lines until we hit TaskId or Timestamp
+                            json_lines = [json_str]
+                            for j in range(i + 1, len(lines)):
+                                if lines[j].startswith(("TaskId:", "Timestamp:")):
+                                    break
+                                json_lines.append(lines[j])
+                            json_str = '\n'.join(json_lines)
+                        result = json.loads(json_str)
+                        break
+            except Exception as e:
+                # Silently fail - the debug output in get_pick will show the issue
+                return None
+        else:
+            # Try parsing as plain JSON
+            try:
+                result = json.loads(result)
+            except Exception as e:
+                # Not JSON format
+                return None
     
     # Handle direct output class instance
     if isinstance(result, output_class):
@@ -40,7 +66,8 @@ def parse_a2a_response(result: Any, output_class: type[BaseModel]) -> Optional[B
         if 'type' in result:
             try:
                 return output_class(**result)
-            except:
+            except Exception as e:
+                # Conversion failed
                 pass
         
         # Handle A2A wrapper format
@@ -65,8 +92,19 @@ def _extract_from_wrapper(wrapped_result: Dict, output_class: type[BaseModel]) -
 
 def extract_task_id(result: Any) -> Optional[str]:
     """Extract task_id from A2A response if present."""
+    # Handle string format with TaskId: line
+    if isinstance(result, str) and "TaskId:" in result:
+        lines = result.strip().split('\n')
+        for line in lines:
+            if line.startswith("TaskId:"):
+                task_id = line[7:].strip()
+                if task_id and task_id != "None":
+                    return task_id
+    
+    # Handle dict format
     if isinstance(result, dict) and 'task_id' in result:
         return result['task_id']
+    
     return None
 
 
