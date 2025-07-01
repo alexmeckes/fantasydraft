@@ -130,6 +130,29 @@ class DynamicA2AAgentManager:
             self._used_ports.difference_update(self.allocated_ports)
             self.allocated_ports = []
     
+    async def _wait_for_server(self, port: int, team_name: str, max_attempts: int = 20, poll_interval: float = 0.5) -> None:
+        """Wait for a server to be ready, using pattern from any-agent helpers."""
+        import httpx
+        host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
+        server_url = f"http://{host}:{port}"
+        attempts = 0
+        
+        async with httpx.AsyncClient() as client:
+            while attempts < max_attempts:
+                try:
+                    # Try to make a basic GET request to check if server is responding
+                    await client.get(f"{server_url}/.well-known/agent.json", timeout=1.0)
+                    print(f"✅ {team_name} server ready on port {port}")
+                    return
+                except (httpx.RequestError, httpx.TimeoutException):
+                    # Server not ready yet, continue polling
+                    attempts += 1
+                    if attempts < max_attempts:
+                        await asyncio.sleep(poll_interval)
+                    continue
+                
+        print(f"⚠️ {team_name} server on port {port} slow to start, continuing anyway...")
+    
     def _create_dynamic_agent_configs(self, ports: List[int]) -> List[Dict]:
         """Create agent configs with dynamic ports."""
         configs = []
@@ -255,12 +278,13 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     self.serve_tasks.append(serve_task)
                     print(f"✅ Started {config['team_name']} on port {config['port']} (session: {self.session_id})")
                     
-                    await asyncio.sleep(AGENT_STARTUP_WAIT)
+                    # Wait for this specific server to be ready
+                    await self._wait_for_server(config['port'], config['team_name'])
                     
                 except Exception as e:
                     print(f"❌ Failed to create/serve {config['team_name']}: {e}")
             
-            # Wait for servers to start
+            # Additional wait for all servers to stabilize
             await asyncio.sleep(AGENT_START_DELAY)
             
             # Create tools for each agent
@@ -334,23 +358,66 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
         if team_num not in self.agent_tools:
             return False
             
-        # Quick health check
-        try:
-            import httpx
-            port_idx = self._get_port_index(team_num)
-            port = self.allocated_ports[port_idx]
-            host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
-            
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                # Try to get agent metadata
-                response = await client.get(f"http://{host}:{port}/.well-known/agent.json")
-                if response.status_code == 200:
-                    return True  # Agent is alive
-        except Exception:
-            pass
+        # Use pattern from any-agent helpers.py for better health checking
+        import httpx
+        port_idx = self._get_port_index(team_num)
+        port = self.allocated_ports[port_idx]
+        host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
+        server_url = f"http://{host}:{port}"
         
-        # Agent is dead, try to restart
-        print(f"⚠️ Team {team_num} server not responding, attempting restart...")
+        # More attempts and longer interval for Team 5
+        max_attempts = 10 if team_num == 5 else 5
+        poll_interval = 1.0 if team_num == 5 else 0.5
+        
+        attempts = 0
+        async with httpx.AsyncClient() as client:
+            while attempts < max_attempts:
+                try:
+                    # Simple GET request to check if server is responding
+                    await client.get(f"{server_url}/.well-known/agent.json", timeout=1.0)
+                    return True  # Agent is alive
+                except (httpx.RequestError, httpx.TimeoutException):
+                    # Server not ready yet, continue polling
+                    attempts += 1
+                    if attempts < max_attempts:
+                        await asyncio.sleep(poll_interval)
+                    continue
+                except Exception:
+                    # Other errors, break out
+                    break
+        
+        # Agent didn't respond to health check, but check if port is still in use
+        port_idx = self._get_port_index(team_num)
+        port = self.allocated_ports[port_idx]
+        
+        # Check if port is actually free before attempting restart
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.1)
+        result = sock.connect_ex(('127.0.0.1', port))
+        sock.close()
+        
+        if result == 0:
+            # Port is still in use, server is probably just slow
+            print(f"⚠️ Team {team_num} server slow to respond but port {port} still in use - skipping restart")
+            return True  # Assume it's alive but slow
+        
+        print(f"⚠️ Team {team_num} server not responding and port {port} is free, attempting restart...")
+        
+        # First, cancel the old serve task to ensure cleanup
+        for i, task in enumerate(self.serve_tasks):
+            if task.done() or (i == self._get_port_index(team_num)):
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    pass
+                break
+        
+        # Wait a bit for cleanup
+        await asyncio.sleep(0.5)
         
         # Find the original config
         original_config = next(c for c in AGENT_CONFIGS if c['team_num'] == team_num)
@@ -388,8 +455,8 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     self.serve_tasks[i] = serve_task
                     break
                 
-                # Wait for restart
-                await asyncio.sleep(2.0)
+                # Wait for server to be ready using proper polling
+                await self._wait_for_server(config['port'], config['team_name'], max_attempts=15)
                 
                 # Recreate tool
                 tool_url = f"http://127.0.0.1:{config['port']}"
@@ -417,10 +484,15 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
             return None
         
         # Check if agent is alive, restart if needed
-        agent_alive = await self.check_and_restart_agent(team_num)
-        if not agent_alive:
-            print(f"❌ Team {team_num} could not be restarted")
-            return None
+        # Skip health check for Team 5 if it recently responded
+        if team_num == 5 and team_num in self.task_ids:
+            # Team 5 tends to be slow, assume it's alive if we have a task_id
+            agent_alive = True
+        else:
+            agent_alive = await self.check_and_restart_agent(team_num)
+            if not agent_alive:
+                print(f"❌ Team {team_num} could not be restarted")
+                return None
         
         # Build minimal prompts to prevent memory buildup
         # Only show top 12 players to reduce context
@@ -429,9 +501,11 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
         
         # Ultra-minimal prompts for efficiency
         if team_num == 5:
-            # Team 5 gets the most minimal prompt
-            prompt = f"""R{round_num}: {available_str[:60]}...
-PICK NOW! {{"type":"pick","player_name":"[PLAYER]","reasoning":"UPSIDE!","trash_talk":"BOOM!"}}"""
+            # Team 5 gets a slightly cleaner minimal prompt
+            prompt = f"""Round {round_num} - HIGH UPSIDE PICK! 🚀
+Players: {available_str[:80]}...
+
+Output JSON: {{"type":"pick","player_name":"[PICK FROM LIST]","reasoning":"UPSIDE!","trash_talk":"BOOM!"}}"""
         else:
             # Compact prompt for other teams
             recent_picks = previous_picks[-2:] if previous_picks else []
@@ -446,9 +520,10 @@ Pick NOW! 💪"""
         max_retries = 2  # Reduced from 3
         retry_delay = 0.5  # Reduced from 2.0
         
-        # For Team 5 specifically, reduce retries to avoid long delays
+        # For Team 5 specifically, adjust retry strategy
         if team_num == 5:
-            max_retries = 1
+            max_retries = 2  # Give it more chances since it's slow
+            retry_delay = 2.0  # Longer delay to let it process
         
         for attempt in range(max_retries):
             try:
