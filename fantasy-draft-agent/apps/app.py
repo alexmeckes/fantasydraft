@@ -285,19 +285,11 @@ class EnhancedFantasyDraftApp:
         
         if not pick_result or pick_result.type != "pick":
             # Fallback to simulation
-            if team_num == 5:
-                # Special handling for Team 5 to reduce user wait time
-                messages.append((
-                    self.current_draft.commissioner,
-                    "ALL",
-                    f"⚡ Team 5 is taking their time - using quick simulation"
-                ))
-            else:
-                messages.append((
-                    self.current_draft.commissioner,
-                    "ALL",
-                    f"⚠️ Team {team_num} A2A agent not responding - using simulation"
-                ))
+            messages.append((
+                self.current_draft.commissioner,
+                "ALL",
+                f"⚠️ Team {team_num} A2A agent not responding - using simulation"
+            ))
             
             sim_messages, _ = self.current_draft.simulate_draft_turn(round_num, pick_num, team_num)
             messages.extend(sim_messages)
@@ -338,10 +330,6 @@ class EnhancedFantasyDraftApp:
         # Get comments from other A2A agents
         potential_commenters = [t for t in [1, 2, 3, 5, 6] if t != team_num and t != 4]
         
-        # For Team 5, skip comments to avoid timeouts cascading
-        if team_num == 5:
-            potential_commenters = []  # No comments when Team 5 picks
-        
         # Sort commenters to prioritize rivals
         if team_num in RIVAL_PAIRS and potential_commenters:
             rivals = RIVAL_PAIRS[team_num]
@@ -363,10 +351,6 @@ class EnhancedFantasyDraftApp:
         for other_team in potential_commenters:
             if comment_count >= max_comments:
                 break
-            
-            # Skip Team 5 commenting to avoid more timeouts
-            if other_team == 5:
-                continue
                 
             comment = await self.a2a_manager.get_comment(other_team, team_num, player, round_num)
             if comment:

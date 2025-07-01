@@ -365,9 +365,9 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
         host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
         server_url = f"http://{host}:{port}"
         
-        # More attempts and longer interval for Team 5
-        max_attempts = 10 if team_num == 5 else 5
-        poll_interval = 1.0 if team_num == 5 else 0.5
+        # Standard health check for all teams
+        max_attempts = 5
+        poll_interval = 0.5
         
         attempts = 0
         async with httpx.AsyncClient() as client:
@@ -484,32 +484,19 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
             return None
         
         # Check if agent is alive, restart if needed
-        # Skip health check for Team 5 if it recently responded
-        if team_num == 5 and team_num in self.task_ids:
-            # Team 5 tends to be slow, assume it's alive if we have a task_id
-            agent_alive = True
-        else:
-            agent_alive = await self.check_and_restart_agent(team_num)
-            if not agent_alive:
-                print(f"❌ Team {team_num} could not be restarted")
-                return None
+        agent_alive = await self.check_and_restart_agent(team_num)
+        if not agent_alive:
+            print(f"❌ Team {team_num} could not be restarted")
+            return None
         
         # Build minimal prompts to prevent memory buildup
         # Only show top 12 players to reduce context
         top_available = available_players[:12]
         available_str = ", ".join(top_available)
         
-        # Ultra-minimal prompts for efficiency
-        if team_num == 5:
-            # Team 5 gets a slightly cleaner minimal prompt
-            prompt = f"""Round {round_num} - HIGH UPSIDE PICK! 🚀
-Players: {available_str[:80]}...
-
-Output JSON: {{"type":"pick","player_name":"[PICK FROM LIST]","reasoning":"UPSIDE!","trash_talk":"BOOM!"}}"""
-        else:
-            # Compact prompt for other teams
-            recent_picks = previous_picks[-2:] if previous_picks else []
-            prompt = f"""Round {round_num} PICK! 🔥
+        # Same prompt for all teams
+        recent_picks = previous_picks[-2:] if previous_picks else []
+        prompt = f"""Round {round_num} PICK! 🔥
 Available: {available_str}
 Your picks: {', '.join(recent_picks)}
 
@@ -517,13 +504,8 @@ MUST output JSON: {{"type":"pick","player_name":"[FROM LIST]","reasoning":"[WHY]
 Pick NOW! 💪"""
         
         # Retry logic with reduced delays for HF Spaces
-        max_retries = 2  # Reduced from 3
-        retry_delay = 0.5  # Reduced from 2.0
-        
-        # For Team 5 specifically, adjust retry strategy
-        if team_num == 5:
-            max_retries = 2  # Give it more chances since it's slow
-            retry_delay = 2.0  # Longer delay to let it process
+        max_retries = 2
+        retry_delay = 0.5
         
         for attempt in range(max_retries):
             try:
@@ -575,14 +557,10 @@ Pick NOW! 💪"""
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
-                    # For Team 5, don't print full traceback to reduce log spam
-                    if team_num == 5:
-                        print(f"⚠️ Team {team_num} timeout - falling back to simulation")
-                    else:
-                        print(f"❌ Error getting pick from Team {team_num}: {error_name}")
-                        if attempt == 0:  # Only print traceback on first failure
-                            import traceback
-                            traceback.print_exc()
+                    print(f"❌ Error getting pick from Team {team_num}: {error_name}")
+                    if attempt == 0:  # Only print traceback on first failure
+                        import traceback
+                        traceback.print_exc()
                     return None
         
         return None
