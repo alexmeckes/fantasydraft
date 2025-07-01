@@ -58,6 +58,7 @@ class DynamicA2AAgentManager:
         self.allocated_ports = []
         self.custom_prompts = custom_prompts or {}  # Store custom prompts
         self.request_counts = {}  # Track requests per agent for memory management
+        self._request_semaphore = asyncio.Semaphore(1)  # Limit concurrent A2A requests
         
     def _generate_session_id(self) -> str:
         """Generate a unique session ID."""
@@ -245,7 +246,8 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                             agent_args={
                                 "temperature": 0.8,
                                 "response_format": {"type": "json_object"},
-                                "max_tokens": 200,  # Limit response size
+                                "max_tokens": 150,  # Reduced response size
+                                "timeout": 60,  # Add explicit timeout
                             }
                         )
                     )
@@ -278,8 +280,11 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     self.serve_tasks.append(serve_task)
                     print(f"✅ Started {config['team_name']} on port {config['port']} (session: {self.session_id})")
                     
+                    # Stagger server startups to avoid overwhelming the system
+                    await asyncio.sleep(1.5)
+                    
                     # Wait for this specific server to be ready
-                    await self._wait_for_server(config['port'], config['team_name'])
+                    await self._wait_for_server(config['port'], config['team_name'], max_attempts=15)
                     
                 except Exception as e:
                     print(f"❌ Failed to create/serve {config['team_name']}: {e}")
@@ -352,6 +357,86 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
         await self._release_ports()
         
         print(f"✅ A2A agents stopped and ports released for session {self.session_id}")
+    
+    async def restart_agent_server(self, team_num: int) -> bool:
+        """Force restart a specific agent's server."""
+        if team_num not in self.agents:
+            return False
+            
+        print(f"🔧 Force restarting Team {team_num} server...")
+        
+        # Get port for this team
+        port_idx = self._get_port_index(team_num)
+        if port_idx >= len(self.allocated_ports):
+            return False
+            
+        port = self.allocated_ports[port_idx]
+        
+        # Cancel the existing serve task
+        if port_idx < len(self.serve_tasks):
+            task = self.serve_tasks[port_idx]
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        
+        # Remove from agent tools
+        self.agent_tools.pop(team_num, None)
+        
+        # Wait for port to be released
+        await asyncio.sleep(1.0)
+        
+        # Get the agent
+        agent = self.agents.get(team_num)
+        if not agent:
+            return False
+            
+        try:
+            # Restart serving
+            host = "0.0.0.0" if os.getenv("SPACE_ID") else "localhost"
+            serving_config = A2AServingConfig(
+                port=port,
+                host=host,
+                task_timeout_minutes=30,
+            )
+            
+            async def monitored_serve(agent, serving_config):
+                """Wrapper to monitor serve task for crashes."""
+                try:
+                    await agent.serve_async(serving_config)
+                except Exception as e:
+                    print(f"❌ Server crashed for Team {team_num}: {type(e).__name__}: {e}")
+                    self.agent_tools.pop(team_num, None)
+            
+            serve_task = asyncio.create_task(
+                monitored_serve(agent, serving_config)
+            )
+            
+            # Replace the serve task
+            if port_idx < len(self.serve_tasks):
+                self.serve_tasks[port_idx] = serve_task
+            
+            # Wait for server to be ready
+            await self._wait_for_server(port, f"Team {team_num}", max_attempts=10)
+            
+            # Recreate tool
+            tool_url = f"http://127.0.0.1:{port}"
+            import httpx
+            timeout_config = httpx.Timeout(timeout=90.0, connect=30.0, read=90.0, write=30.0, pool=30.0)
+            
+            self.agent_tools[team_num] = await a2a_tool_async(
+                tool_url,
+                http_kwargs={"timeout": timeout_config}
+            )
+            
+            print(f"✅ Successfully restarted Team {team_num} server")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to restart Team {team_num}: {e}")
+            return False
     
     async def check_and_restart_agent(self, team_num: int) -> bool:
         """Check if agent is alive and restart if needed."""
@@ -503,24 +588,33 @@ Your picks: {', '.join(recent_picks)}
 MUST output JSON: {{"type":"pick","player_name":"[FROM LIST]","reasoning":"[WHY]","trash_talk":"[OPTIONAL]"}}
 Pick NOW! 💪"""
         
-        # Retry logic with reduced delays for HF Spaces
-        max_retries = 2
-        retry_delay = 0.5
+        # Retry logic with exponential backoff for HF Spaces
+        max_retries = 3
+        base_delay = 1.0
         
         for attempt in range(max_retries):
             try:
                 # Track request count for memory management
                 self.request_counts[team_num] = self.request_counts.get(team_num, 0) + 1
                 
-                # Reset task_id every 10 requests to prevent memory buildup
-                if self.request_counts[team_num] > 10:
+                # Reset task_id every 5 requests to prevent memory buildup
+                if self.request_counts[team_num] > 5:
                     self.task_ids.pop(team_num, None)
                     self.request_counts[team_num] = 0
                     print(f"🔄 Resetting context for Team {team_num} to prevent memory buildup")
                 
+                # Check if we should restart the server before making request
+                if self.request_counts[team_num] == 1 and round_num > 1:
+                    # Restart server at the beginning of each round after round 1
+                    print(f"🔄 Restarting Team {team_num} server for round {round_num}")
+                    await self.restart_agent_server(team_num)
+                
                 # Use task_id if we have one for this agent
                 task_id = self.task_ids.get(team_num)
-                result = await self.agent_tools[team_num](prompt, task_id=task_id)
+                
+                # Limit concurrent requests to prevent overloading
+                async with self._request_semaphore:
+                    result = await self.agent_tools[team_num](prompt, task_id=task_id)
                 
                 # Extract and store task_id
                 new_task_id = extract_task_id(result)
@@ -550,10 +644,21 @@ Pick NOW! 💪"""
                     
             except Exception as e:
                 error_name = type(e).__name__
-                is_timeout = "timeout" in str(e).lower() or "readtimeout" in error_name.lower()
+                error_str = str(e)
+                is_timeout = "timeout" in error_str.lower() or "readtimeout" in error_name.lower()
+                is_503 = "503" in error_str or "service unavailable" in error_str.lower()
+                is_network = "A2AClientHTTPError" in error_name or is_503
                 
-                if attempt < max_retries - 1 and is_timeout:
-                    print(f"⚠️ Timeout for Team {team_num} (attempt {attempt + 1}/{max_retries}), retrying quickly...")
+                if attempt < max_retries - 1 and (is_timeout or is_network):
+                    # Exponential backoff for retries
+                    retry_delay = base_delay * (2 ** attempt)
+                    print(f"⚠️ {'Network error' if is_network else 'Timeout'} for Team {team_num} (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                    
+                    # If it's a 503 error, try to restart the server
+                    if is_503 and attempt == 0:
+                        print(f"🔧 Attempting to restart Team {team_num} server due to 503 error")
+                        await self.restart_agent_server(team_num)
+                        
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
@@ -582,7 +687,10 @@ COMMENT? {{"type":"comment","should_comment":true/false,"comment":"[ROAST THEM!]
             try:
                 # Use task_id for continuity
                 task_id = self.task_ids.get(commenting_team)
-                result = await self.agent_tools[commenting_team](prompt, task_id=task_id)
+                
+                # Limit concurrent requests
+                async with self._request_semaphore:
+                    result = await self.agent_tools[commenting_team](prompt, task_id=task_id)
                 
                 # Extract and store task_id
                 task_id = extract_task_id(result)
