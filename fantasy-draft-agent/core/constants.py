@@ -10,7 +10,7 @@ AGENT_STARTUP_WAIT = 1.0  # Increased from 0.5 to ensure each agent is ready
 DEFAULT_TIMEOUT = 60.0  # Increased for HF Spaces compatibility
 
 # Comment configuration
-MAX_COMMENTS_PER_PICK = 2
+MAX_COMMENTS_PER_PICK = 1  # Reduced for more concise draft flow
 
 # Natural rivalry pairs for prioritizing comments
 RIVAL_PAIRS = {

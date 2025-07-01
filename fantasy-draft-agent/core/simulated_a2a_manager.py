@@ -8,7 +8,7 @@ import time
 import random
 from typing import Optional, List, Dict
 from core.agent import FantasyDraftAgent
-from core.constants import AGENT_CONFIGS
+from core.constants import AGENT_CONFIGS, MAX_COMMENTS_PER_PICK
 
 
 class SimulatedA2AResponse:
@@ -26,11 +26,12 @@ class SimulatedA2AAgentManager:
     Provides the same interface as DynamicA2AAgentManager but runs in-process.
     """
     
-    def __init__(self, session_id: str = "sim"):
+    def __init__(self, session_id: str = "sim", max_comments_per_pick=MAX_COMMENTS_PER_PICK, custom_prompts=None):
         self.session_id = session_id
         self.agents: Dict[int, FantasyDraftAgent] = {}
         self.running = False
-        self.max_comments_per_pick = 2
+        self.max_comments_per_pick = max_comments_per_pick
+        self.custom_prompts = custom_prompts or {}
         # Simulate port allocation
         self.allocated_ports = [5001, 5002, 5003, 5004, 5005, 5006]
         

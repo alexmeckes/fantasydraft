@@ -576,7 +576,7 @@ class MultiAgentMockDraft:
                 available_commenters.remove(3)
         
         # Priority 3: Random agent if pick is controversial
-        if self.is_pick_controversial(picked_player, pick_num) and len(selected) < 2 and available_commenters:
+        if self.is_pick_controversial(picked_player, pick_num) and len(selected) < 1 and available_commenters:
             random_commenter = random.choice(available_commenters)
             selected.append(random_commenter)
         
@@ -588,7 +588,7 @@ class MultiAgentMockDraft:
             elif self.is_pick_controversial(picked_player, pick_num) or random.random() > 0.5:
                 selected.append(random.choice(available_commenters))
         
-        return selected[:2]  # Max 2 commenters
+        return selected[:1]  # Max 1 commenter - reduced for concise draft flow
     
     def get_draft_order(self, round_num: int) -> List[int]:
         """Get the draft order for a given round (snake draft)."""
@@ -665,7 +665,7 @@ class MultiAgentMockDraft:
                     ]
                     messages.append((meta_agent, "ALL", random.choice(meta_comments)))
             
-            # Select 2-3 agents to comment
+            # Select 1 agent to comment
             if player in TOP_PLAYERS:
                 player_info = TOP_PLAYERS[player]
                 selected_commenters = self.select_commenters(team_num, player)
@@ -728,8 +728,8 @@ class MultiAgentMockDraft:
             player_info = TOP_PLAYERS[player_name]
             selected_commenters = self.select_commenters(self.user_position, player_name)
             
-            # User picks get attention - allow up to 2 comments
-            for commenter_num in selected_commenters[:2]:
+            # User picks get attention - allow up to 1 comment
+            for commenter_num in selected_commenters[:1]:
                 agent = self.agents.get(commenter_num)
                 if agent:
                     # Add typing indicator

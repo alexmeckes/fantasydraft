@@ -47,7 +47,7 @@ class DynamicA2AAgentManager:
     _used_ports = set()
     _port_lock = asyncio.Lock()
     
-    def __init__(self, session_id: str = None, max_comments_per_pick=MAX_COMMENTS_PER_PICK):
+    def __init__(self, session_id: str = None, max_comments_per_pick=MAX_COMMENTS_PER_PICK, custom_prompts=None):
         self.session_id = session_id or self._generate_session_id()
         self.agents = {}
         self.agent_tools = {}
@@ -56,6 +56,7 @@ class DynamicA2AAgentManager:
         self.task_ids = {}
         self.max_comments_per_pick = max_comments_per_pick
         self.allocated_ports = []
+        self.custom_prompts = custom_prompts or {}  # Store custom prompts
         
     def _generate_session_id(self) -> str:
         """Generate a unique session ID."""
@@ -159,14 +160,14 @@ class DynamicA2AAgentManager:
             # Create and serve all agents
             for config in agent_configs:
                 try:
-                    # Create agent (same as before)
-                    agent = await AnyAgent.create_async(
-                        "tinyagent",
-                        AgentConfig(
-                            name=f"team_{config['team_num']}_agent_{self.session_id}",
-                            model_id="gpt-4o-mini",
-                            description=f"{config['team_name']} - {config['strategy']} fantasy football team manager",
-                            instructions=f"""You are {config['team_name']}, a fantasy football manager with {config['strategy']} strategy.
+                    # Use custom prompt if provided, otherwise use default
+                    team_num = config['team_num']
+                    if team_num in self.custom_prompts:
+                        # Use custom prompt
+                        instructions = self.custom_prompts[team_num]
+                    else:
+                        # Use default prompt
+                        instructions = f"""You are {config['team_name']}, a fantasy football manager with {config['strategy']} strategy.
 
 For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
 For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
@@ -184,7 +185,16 @@ PERSONALITY REQUIREMENTS:
 
 Your EXTREME philosophy: {config['philosophy']}
 
-BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
+BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
+                    
+                    # Create agent
+                    agent = await AnyAgent.create_async(
+                        "tinyagent",
+                        AgentConfig(
+                            name=f"team_{config['team_num']}_agent_{self.session_id}",
+                            model_id="gpt-4o-mini",
+                            description=f"{config['team_name']} - {config['strategy']} fantasy football team manager",
+                            instructions=instructions,
                             output_type=A2AOutput,
                         )
                     )

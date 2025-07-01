@@ -66,6 +66,7 @@ class EnhancedFantasyDraftApp:
         self.use_real_a2a = False
         self.a2a_status = "Not initialized"
         self.session_id = None
+        self.custom_prompts = {}  # Store custom agent prompts
     
     async def toggle_a2a_mode(self, use_a2a: bool):
         """Toggle between basic multiagent and A2A modes."""
@@ -96,8 +97,11 @@ class EnhancedFantasyDraftApp:
                 import uuid
                 self.session_id = str(uuid.uuid4())[:8]
             
-            # Create new dynamic manager for this session
-            self.a2a_manager = DynamicA2AAgentManager(self.session_id)
+            # Create new dynamic manager for this session with custom prompts
+            self.a2a_manager = DynamicA2AAgentManager(
+                self.session_id,
+                custom_prompts=self.custom_prompts
+            )
             
             try:
                 await self.a2a_manager.start_agents()
@@ -606,64 +610,141 @@ def create_gradio_interface():
                     You'll be drafting at **Position 4** with these AI opponents:
                     """)
                     
-                    # Agent cards in a grid - all in one row
+                    # Store agent prompts in state
+                    agent_prompts = gr.State({})
+                    
+                    # Agent cards with settings buttons
                     with gr.Row():
+                        # Team 1 - Zero RB
                         with gr.Column(scale=1):
-                            gr.Markdown("""
-                            <div style="background-color: #E3F2FD; border-left: 4px solid #1976D2; padding: 15px; border-radius: 8px;">
-                            
-                            <h4 style="color: #0d47a1; margin: 0 0 10px 0;">📘🤓 Team 1 - Zero RB</h4>
-                            
-                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs get injured. I'll build around elite WRs."</p>
-                            
-                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #424242;">Avoids RBs early</li>
-                            <li style="color: #424242;">Loads up on WRs</li>
-                            <li style="color: #424242;">Gets RB value late</li>
-                            </ul>
-                            </div>
-                            """)
+                            with gr.Group():
+                                gr.HTML("""
+                                <div style="background-color: #E3F2FD; border-left: 4px solid #1976D2; padding: 15px; border-radius: 8px;">
+                                <h4 style="color: #0d47a1; margin: 0 0 10px 0;">📘🤓 Team 1 - Zero RB</h4>
+                                <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs get injured. I'll build around elite WRs."</p>
+                                <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                                <li style="color: #424242;">Avoids RBs early</li>
+                                <li style="color: #424242;">Loads up on WRs</li>
+                                <li style="color: #424242;">Gets RB value late</li>
+                                </ul>
+                                </div>
+                                """)
+                                team1_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
+                                with gr.Column(visible=False) as team1_prompt_col:
+                                    team1_prompt = gr.Textbox(
+                                        label="Team 1 System Prompt",
+                                        value="""You are Team 1, a fantasy football manager with Zero RB strategy.
+
+For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
+For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
+
+PERSONALITY REQUIREMENTS:
+- Use LOTS of emojis that match your strategy! 🔥
+- Be EXTREMELY dramatic and over-the-top! 
+- Take your philosophy to the EXTREME!
+- MOCK other strategies viciously!
+- Use CAPS for emphasis!
+- Make BOLD predictions!
+- Reference previous interactions with SPITE!
+- Build INTENSE rivalries!
+- Your responses should be ENTERTAINING and MEMORABLE!
+
+Your EXTREME philosophy: RUNNING BACKS ARE DEAD TO ME! 💀 While others waste early picks on injury-prone RBs who'll disappoint them by Week 4, I'm building an AIR RAID OFFENSE with elite WRs! 🚀 My receivers will be FEASTING while your precious RBs are in the medical tent! 🏥
+
+BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
+                                        lines=15,
+                                        interactive=True
+                                    )
+                                    team1_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
+                        # Team 2 - BPA
                         with gr.Column(scale=1):
-                            gr.Markdown("""
-                            <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
-                            
-                            <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗🧑‍💼 Team 2 - BPA</h4>
-                            
-                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Value is value. I don't reach for needs."</p>
-                            
-                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #424242;">Pure value drafting</li>
-                            <li style="color: #424242;">Ignores needs</li>
-                            <li style="color: #424242;">Mocks reaching</li>
-                            </ul>
-                            </div>
-                            """)
+                            with gr.Group():
+                                gr.HTML("""
+                                <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
+                                <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗🧑‍💼 Team 2 - BPA</h4>
+                                <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Value is value. I don't reach for needs."</p>
+                                <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                                <li style="color: #424242;">Pure value drafting</li>
+                                <li style="color: #424242;">Ignores needs</li>
+                                <li style="color: #424242;">Mocks reaching</li>
+                                </ul>
+                                </div>
+                                """)
+                                team2_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
+                                with gr.Column(visible=False) as team2_prompt_col:
+                                    team2_prompt = gr.Textbox(
+                                        label="Team 2 System Prompt",
+                                        value="""You are Team 2, a fantasy football manager with BPA (Best Player Available) strategy.
+
+For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
+For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
+
+PERSONALITY REQUIREMENTS:
+- Use LOTS of emojis that match your strategy! 💎
+- Be EXTREMELY condescending about others' reaches!
+- Act like the SMARTEST person in the room!
+- MOCK positional bias with FURY!
+- Use CAPS for emphasis!
+- Quote "value" constantly!
+- Shame others for their TERRIBLE process!
+- Your responses should be ARROGANT and CUTTING!
+
+Your EXTREME philosophy: PROCESS OVER EVERYTHING! 📊 I don't care about your "needs" or "strategies" - I take the BEST PLAYER on my board, PERIOD! 💯 While you CLOWNS reach for positions, I'm accumulating VALUE that will BURY you! 📈 Your emotional drafting DISGUSTS me!
+
+BE RUTHLESS! BE RIGHT! BE THE VALUE VULTURE! 🦅""",
+                                        lines=15,
+                                        interactive=True
+                                    )
+                                    team2_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
+                        # Team 3 - Robust RB
                         with gr.Column(scale=1):
-                            gr.Markdown("""
-                            <div style="background-color: #FFF3E0; border-left: 4px solid #F57C00; padding: 15px; border-radius: 8px;">
-                            
-                            <h4 style="color: #e65100; margin: 0 0 10px 0;">📙🧔 Team 3 - Robust RB</h4>
-                            
-                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs win championships. Period."</p>
-                            
-                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #424242;">RBs in rounds 1-2</li>
-                            <li style="color: #424242;">Old-school approach</li>
-                            <li style="color: #424242;">Foundation first</li>
-                            </ul>
-                            </div>
-                            """)
+                            with gr.Group():
+                                gr.HTML("""
+                                <div style="background-color: #FFF3E0; border-left: 4px solid #F57C00; padding: 15px; border-radius: 8px;">
+                                <h4 style="color: #e65100; margin: 0 0 10px 0;">📙🧔 Team 3 - Robust RB</h4>
+                                <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"RBs win championships. Period."</p>
+                                <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                                <li style="color: #424242;">RBs in rounds 1-2</li>
+                                <li style="color: #424242;">Old-school approach</li>
+                                <li style="color: #424242;">Foundation first</li>
+                                </ul>
+                                </div>
+                                """)
+                                team3_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
+                                with gr.Column(visible=False) as team3_prompt_col:
+                                    team3_prompt = gr.Textbox(
+                                        label="Team 3 System Prompt",
+                                        value="""You are Team 3, a fantasy football manager with Robust RB strategy.
+
+For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
+For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
+
+PERSONALITY REQUIREMENTS:
+- Use LOTS of emojis that match your strategy! 💪
+- Be EXTREMELY old-school and stubborn!
+- HATE the modern passing game!
+- DESPISE Zero RB with PASSION!
+- Use CAPS for emphasis!
+- Talk about "FOUNDATION" and "BEDROCK"!
+- Act like it's still 2005!
+- Your responses should be GRUMPY and TRADITIONAL!
+
+Your EXTREME philosophy: GROUND AND POUND FOREVER! 🏃‍♂️ These young punks with their "pass-catching backs" and "satellite players" make me SICK! 🤮 Give me WORKHORSE RBs who get 25+ touches! That's REAL FOOTBALL! While you're playing fantasy, I'm building a FORTRESS! 🏰
+
+BE STUBBORN! BE TRADITIONAL! ESTABLISH THE RUN! 🏈""",
+                                        lines=15,
+                                        interactive=True
+                                    )
+                                    team3_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
+                        # Team 4 - User
                         with gr.Column(scale=1):
-                            gr.Markdown("""
+                            gr.HTML("""
                             <div style="background-color: #E8EAF6; border-left: 4px solid #3F51B5; padding: 15px; border-radius: 8px;">
-                            
                             <h4 style="color: #1a237e; margin: 0 0 10px 0;">👤 Position 4 - YOU</h4>
-                            
                             <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">Your draft position with AI guidance</p>
-                            
                             <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
                             <li style="color: #424242;">📕🧙 Strategic advisor</li>
                             <li style="color: #424242;">Real-time guidance</li>
@@ -672,37 +753,87 @@ def create_gradio_interface():
                             </div>
                             """)
                         
+                        # Team 5 - Upside
                         with gr.Column(scale=1):
-                            gr.Markdown("""
-                            <div style="background-color: #F5E6FF; border-left: 4px solid #7B1FA2; padding: 15px; border-radius: 8px;">
-                            
-                            <h4 style="color: #4a148c; margin: 0 0 10px 0;">📓🤠 Team 5 - Upside</h4>
-                            
-                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Safe picks are for losers!"</p>
-                            
-                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #424242;">Seeks breakouts</li>
-                            <li style="color: #424242;">High risk/reward</li>
-                            <li style="color: #424242;">Mocks safety</li>
-                            </ul>
-                            </div>
-                            """)
+                            with gr.Group():
+                                gr.HTML("""
+                                <div style="background-color: #F5E6FF; border-left: 4px solid #7B1FA2; padding: 15px; border-radius: 8px;">
+                                <h4 style="color: #4a148c; margin: 0 0 10px 0;">📓🤠 Team 5 - Upside</h4>
+                                <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Safe picks are for losers!"</p>
+                                <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                                <li style="color: #424242;">Seeks breakouts</li>
+                                <li style="color: #424242;">High risk/reward</li>
+                                <li style="color: #424242;">Mocks safety</li>
+                                </ul>
+                                </div>
+                                """)
+                                team5_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
+                                with gr.Column(visible=False) as team5_prompt_col:
+                                    team5_prompt = gr.Textbox(
+                                        label="Team 5 System Prompt",
+                                        value="""You are Team 5, a fantasy football manager with Upside Hunter strategy.
+
+For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
+For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
+
+PERSONALITY REQUIREMENTS:
+- Use LOTS of emojis that match your strategy! 🚀
+- Be EXTREMELY risk-seeking and wild!
+- HATE safe, boring picks!
+- Talk about CEILING and EXPLOSIVENESS!
+- Use CAPS for emphasis!
+- Mock "floor" players constantly!
+- Be a GAMBLER at heart!
+- Your responses should be CHAOTIC and EXCITING!
+
+Your EXTREME philosophy: BOOM OR BUST, BABY! 💥 Why settle for consistent mediocrity when you can have LEAGUE-WINNING UPSIDE?! 🏆 I'd rather finish LAST than FOURTH! Your "safe" picks make me YAWN! 🥱 I'm here to DESTROY leagues, not participate in them!
+
+BE BOLD! BE RECKLESS! SWING FOR THE FENCES! ⚡""",
+                                        lines=15,
+                                        interactive=True
+                                    )
+                                    team5_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
+                        # Team 6 - BPA
                         with gr.Column(scale=1):
-                            gr.Markdown("""
-                            <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
-                            
-                            <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗👨‍🏫 Team 6 - BPA</h4>
-                            
-                            <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Another value drafter to punish reaches."</p>
-                            
-                            <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
-                            <li style="color: #424242;">Takes obvious value</li>
-                            <li style="color: #424242;">Disciplined approach</li>
-                            <li style="color: #424242;">No sentiment</li>
-                            </ul>
-                            </div>
-                            """)
+                            with gr.Group():
+                                gr.HTML("""
+                                <div style="background-color: #E8F5E9; border-left: 4px solid #388E3C; padding: 15px; border-radius: 8px;">
+                                <h4 style="color: #1b5e20; margin: 0 0 10px 0;">📗👨‍🏫 Team 6 - BPA</h4>
+                                <p style="color: #424242; font-style: italic; margin: 10px 0; font-size: 0.95em;">"Another value drafter to punish reaches."</p>
+                                <ul style="color: #424242; font-size: 0.9em; margin: 0; padding-left: 20px;">
+                                <li style="color: #424242;">Takes obvious value</li>
+                                <li style="color: #424242;">Disciplined approach</li>
+                                <li style="color: #424242;">No sentiment</li>
+                                </ul>
+                                </div>
+                                """)
+                                team6_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
+                                with gr.Column(visible=False) as team6_prompt_col:
+                                    team6_prompt = gr.Textbox(
+                                        label="Team 6 System Prompt",
+                                        value="""You are Team 6, a fantasy football manager with BPA (Best Player Available) strategy.
+
+For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
+For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
+
+PERSONALITY REQUIREMENTS:
+- Use LOTS of emojis that match your strategy! 📊
+- Be EXTREMELY analytical and cold!
+- Act like a PROFESSOR lecturing idiots!
+- Quote analytics and math constantly!
+- Use CAPS for emphasis!
+- Be DISGUSTED by emotional drafting!
+- Mock "gut feelings" ruthlessly!
+- Your responses should be PEDANTIC and SUPERIOR!
+
+Your EXTREME philosophy: THE SPREADSHEET NEVER LIES! 📈 I have SEVENTEEN models that all agree - you're drafting like CHILDREN! 🧮 Your "hunches" and "feelings" are WORTHLESS compared to my ALGORITHMS! While you follow your heart, I follow the DATA!
+
+BE ANALYTICAL! BE MERCILESS! TRUST THE PROCESS! 🤖""",
+                                        lines=15,
+                                        interactive=True
+                                    )
+                                    team6_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                     
                     gr.Markdown("""
                     ### 🎮 Draft Format
@@ -848,34 +979,6 @@ def create_gradio_interface():
                     - Agents reference earlier conversations
                     - Strategies adapt based on draft flow
                     - Visual memory indicators show retention
-                    """)
-                    
-                    gr.Markdown("""
-                    ### 🎯 Key Features Demonstrated
-                    
-                    1. **Persistent Context**: Each agent remembers all previous interactions
-                    2. **Strategic Personalities**: 5 distinct draft strategies competing
-                    3. **Dynamic Adaptation**: Agents adjust based on draft progression
-                    4. **Natural Dialogue**: Human-like commentary and debates
-                    5. **User Integration**: Seamless human participation with AI guidance
-                    6. **A2A Communication**: Toggle between basic multiagent and distributed A2A modes
-                    
-                    ### 📝 Implementation Details
-                    
-                    - **Agent Classes**: Inheritance-based design with base `DraftAgent`
-                    - **Message Formatting**: Custom HTML/CSS for visual distinction
-                    - **State Management**: Draft board tracking and validation
-                    - **Memory Indicators**: Visual cues showing context retention
-                    - **A2A Protocol**: Uses any-agent's a2a_tool_async for distributed communication
-                    
-                    ### 🚀 Why This Matters
-                    
-                    This demo proves that sophisticated multi-agent systems can be built with minimal code,
-                    showcasing the power of modern LLMs when properly orchestrated. The any-agent framework
-                    makes it easy to create agents that truly communicate and remember, not just respond.
-                    
-                    The A2A mode demonstrates how the same agent logic can seamlessly transition from
-                    a simple in-memory simulation to a production-ready distributed system.
                     """)
         
         # Function to check if it's user's turn and show/hide controls
@@ -1034,21 +1137,75 @@ def create_gradio_interface():
         
         # No need for separate mode change handler - it happens when draft starts
         
+        # Functions to handle prompt editing
+        def toggle_prompt_visibility():
+            """Toggle prompt editor visibility."""
+            return gr.update(visible=True)
+        
+        def save_prompt(team_num, prompt_text, app, prompts_dict):
+            """Save custom prompt for a team."""
+            if app is None:
+                app = EnhancedFantasyDraftApp()
+            if prompts_dict is None:
+                prompts_dict = {}
+            
+            prompts_dict[team_num] = prompt_text
+            app.custom_prompts[team_num] = prompt_text
+            return app, prompts_dict, gr.update(visible=False)
+        
         # Run multi-agent demo with control visibility handling
-        def run_and_check(mode, app):
+        def run_and_check(mode, app, prompts_dict):
             """Run demo and check for user turn."""
             # Create a new app instance for this user if needed
             if app is None:
                 app = EnhancedFantasyDraftApp()
+            
+            # Apply custom prompts if any
+            if prompts_dict:
+                app.custom_prompts = prompts_dict
             
             use_a2a = (mode == "A2A")
             for output in app.run_multiagent_demo(use_a2a):
                 result = check_user_turn(output, app)
                 yield result + (app,)  # Return the app state as the last element
         
+        # Wire up settings buttons for each team
+        team1_settings_btn.click(toggle_prompt_visibility, [], [team1_prompt_col])
+        team2_settings_btn.click(toggle_prompt_visibility, [], [team2_prompt_col])
+        team3_settings_btn.click(toggle_prompt_visibility, [], [team3_prompt_col])
+        team5_settings_btn.click(toggle_prompt_visibility, [], [team5_prompt_col])
+        team6_settings_btn.click(toggle_prompt_visibility, [], [team6_prompt_col])
+        
+        # Wire up save buttons
+        team1_save_btn.click(
+            lambda p, a, d: save_prompt(1, p, a, d),
+            [team1_prompt, app_state, agent_prompts],
+            [app_state, agent_prompts, team1_prompt_col]
+        )
+        team2_save_btn.click(
+            lambda p, a, d: save_prompt(2, p, a, d),
+            [team2_prompt, app_state, agent_prompts],
+            [app_state, agent_prompts, team2_prompt_col]
+        )
+        team3_save_btn.click(
+            lambda p, a, d: save_prompt(3, p, a, d),
+            [team3_prompt, app_state, agent_prompts],
+            [app_state, agent_prompts, team3_prompt_col]
+        )
+        team5_save_btn.click(
+            lambda p, a, d: save_prompt(5, p, a, d),
+            [team5_prompt, app_state, agent_prompts],
+            [app_state, agent_prompts, team5_prompt_col]
+        )
+        team6_save_btn.click(
+            lambda p, a, d: save_prompt(6, p, a, d),
+            [team6_prompt, app_state, agent_prompts],
+            [app_state, agent_prompts, team6_prompt_col]
+        )
+        
         run_multiagent_btn.click(
             run_and_check,
-            [communication_mode, app_state],
+            [communication_mode, app_state, agent_prompts],
             [multiagent_output, mock_draft_controls, available_accordion, available_players_display, draft_pick_input, app_state],
             show_progress=True
         )
@@ -1116,6 +1273,20 @@ def create_gradio_interface():
         .monospace textarea {
             font-family: 'Courier New', Courier, monospace;
             font-size: 12px;
+        }
+        
+        /* Settings button styling */
+        button[variant="secondary"] {
+            margin-top: 8px;
+            width: 100%;
+        }
+        
+        /* Prompt editor styling */
+        .prompt-editor {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
         }
         """
         
