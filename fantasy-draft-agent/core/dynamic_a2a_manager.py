@@ -205,14 +205,17 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     # On HF Spaces, we might need to bind to 0.0.0.0
                     host = "0.0.0.0" if os.getenv("SPACE_ID") else "localhost"
                     
+                    # Enhanced serving config for HF Spaces
+                    serving_config = A2AServingConfig(
+                        port=config['port'],
+                        host=host,
+                        task_timeout_minutes=30,
+                        # Additional settings for cloud environments
+                        debug=True if os.getenv("SPACE_ID") else False,
+                    )
+                    
                     serve_task = asyncio.create_task(
-                        agent.serve_async(
-                            A2AServingConfig(
-                                port=config['port'],
-                                host=host,
-                                task_timeout_minutes=30,
-                            )
-                        )
+                        agent.serve_async(serving_config)
                     )
                     self.serve_tasks.append(serve_task)
                     print(f"✅ Started {config['team_name']} on port {config['port']} (session: {self.session_id})")
@@ -235,9 +238,18 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     # On HF Spaces, we might need to use 127.0.0.1 for internal communication
                     host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
                     tool_url = f"http://{host}:{config['port']}"
+                    # Use httpx timeout with longer settings for HF Spaces
+                    import httpx
+                    timeout_config = httpx.Timeout(
+                        timeout=DEFAULT_TIMEOUT,
+                        connect=30.0,  # Connection timeout
+                        read=60.0,     # Read timeout
+                        write=30.0,    # Write timeout
+                        pool=30.0      # Pool timeout
+                    )
                     self.agent_tools[team_num] = await a2a_tool_async(
                         tool_url,
-                        http_kwargs={"timeout": DEFAULT_TIMEOUT}
+                        http_kwargs={"timeout": timeout_config}
                     )
                     print(f"✅ Created A2A tool for Team {team_num} at {tool_url}")
                     
@@ -298,32 +310,46 @@ Make your pick and DESTROY the competition! 💪
 Output an A2AOutput with type="pick", player_name, reasoning (with emojis!), and SAVAGE trash_talk!
 Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMINANCE! 🔥"""
         
-        try:
-            # Use task_id if we have one for this agent
-            task_id = self.task_ids.get(team_num)
-            result = await self.agent_tools[team_num](prompt, task_id=task_id)
-            
-            # Extract and store task_id
-            new_task_id = extract_task_id(result)
-            if new_task_id:
-                self.task_ids[team_num] = new_task_id
-            
-            # Parse the response
-            output = parse_a2a_response(result, A2AOutput)
-            if output:
-                print(f"✅ Team {team_num} pick: {output.player_name}")
-            else:
-                print(f"❌ Failed to parse response from Team {team_num}")
-                if isinstance(result, str) and len(result) > 100:
-                    # Show compact preview for debugging
-                    print(f"   Response format issue - check a2a_helpers.py parsing")
-            return output
+        # Retry logic for network issues
+        max_retries = 3
+        retry_delay = 2.0
+        
+        for attempt in range(max_retries):
+            try:
+                # Use task_id if we have one for this agent
+                task_id = self.task_ids.get(team_num)
+                result = await self.agent_tools[team_num](prompt, task_id=task_id)
                 
-        except Exception as e:
-            print(f"❌ Error getting pick from Team {team_num}: {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+                # Extract and store task_id
+                new_task_id = extract_task_id(result)
+                if new_task_id:
+                    self.task_ids[team_num] = new_task_id
+                
+                # Parse the response
+                output = parse_a2a_response(result, A2AOutput)
+                if output:
+                    print(f"✅ Team {team_num} pick: {output.player_name}")
+                else:
+                    print(f"❌ Failed to parse response from Team {team_num}")
+                    if isinstance(result, str) and len(result) > 100:
+                        # Show compact preview for debugging
+                        print(f"   Response format issue - check a2a_helpers.py parsing")
+                return output
+                    
+            except Exception as e:
+                error_name = type(e).__name__
+                if attempt < max_retries - 1 and "timeout" in str(e).lower():
+                    print(f"⚠️ Timeout for Team {team_num} (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    print(f"❌ Error getting pick from Team {team_num}: {error_name}: {e}")
+                    if attempt == 0:  # Only print traceback on first failure
+                        import traceback
+                        traceback.print_exc()
+                    return None
+        
+        return None
     
     async def get_comment(self, commenting_team: int, picking_team: int,
                          player_picked: str, round_num: int = 1) -> Optional[str]:
@@ -339,23 +365,34 @@ Should you UNLEASH your wisdom? Output an A2AOutput with type="comment", should_
 If they're your RIVAL, make it PERSONAL! If they made a BAD pick, ROAST THEM! 🔥
 Use emojis to make your point UNFORGETTABLE! 😈"""
         
-        try:
-            # Use task_id for continuity
-            task_id = self.task_ids.get(commenting_team)
-            result = await self.agent_tools[commenting_team](prompt, task_id=task_id)
-            
-            # Extract and store task_id
-            task_id = extract_task_id(result)
-            if task_id:
-                self.task_ids[commenting_team] = task_id
-            
-            # Parse the response
-            output = parse_a2a_response(result, A2AOutput)
-            
-            if output and hasattr(output, 'should_comment') and output.should_comment and output.comment:
-                return output.comment
-        except Exception as e:
-            print(f"Error getting comment from Team {commenting_team}: {e}")
+        # Retry logic for network issues
+        max_retries = 2  # Fewer retries for comments to avoid delays
+        
+        for attempt in range(max_retries):
+            try:
+                # Use task_id for continuity
+                task_id = self.task_ids.get(commenting_team)
+                result = await self.agent_tools[commenting_team](prompt, task_id=task_id)
+                
+                # Extract and store task_id
+                task_id = extract_task_id(result)
+                if task_id:
+                    self.task_ids[commenting_team] = task_id
+                
+                # Parse the response
+                output = parse_a2a_response(result, A2AOutput)
+                
+                if output and hasattr(output, 'should_comment') and output.should_comment and output.comment:
+                    return output.comment
+                return None
+                    
+            except Exception as e:
+                if attempt < max_retries - 1 and "timeout" in str(e).lower():
+                    await asyncio.sleep(1.0)  # Short retry for comments
+                    continue
+                else:
+                    print(f"Error getting comment from Team {commenting_team}: {e}")
+                    return None
         
         return None
 
