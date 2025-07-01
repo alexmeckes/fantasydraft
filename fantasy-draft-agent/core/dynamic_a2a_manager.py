@@ -160,22 +160,34 @@ class DynamicA2AAgentManager:
             # Create and serve all agents
             for config in agent_configs:
                 try:
-                    # Use custom prompt if provided, otherwise use default
-                    team_num = config['team_num']
-                    if team_num in self.custom_prompts:
-                        # Use custom prompt
-                        instructions = self.custom_prompts[team_num]
-                    else:
-                        # Use default prompt
-                        instructions = f"""You are {config['team_name']}, a fantasy football manager with {config['strategy']} strategy.
-
-CRITICAL OUTPUT INSTRUCTIONS:
+                    # Critical instructions that MUST be included
+                    critical_instructions = """CRITICAL OUTPUT INSTRUCTIONS (DO NOT MODIFY):
 For picks: You MUST return a JSON object with type="pick", player_name (from available list), reasoning, and optional trash_talk.
 For comments: You MUST return a JSON object with type="comment", should_comment (true/false), and comment.
 
 NEVER respond with plain text when asked to make a pick! Always use the structured format!
 
-PERSONALITY REQUIREMENTS:
+Example pick format:
+{"type": "pick", "player_name": "CeeDee Lamb", "reasoning": "Elite WR with huge upside!", "trash_talk": "Your RBs will be crying!"}
+
+Example comment format:
+{"type": "comment", "should_comment": true, "comment": "Terrible pick! He's overrated!"}
+
+---END CRITICAL INSTRUCTIONS---
+
+"""
+                    
+                    # Use custom prompt if provided, otherwise use default
+                    team_num = config['team_num']
+                    if team_num in self.custom_prompts:
+                        # Use custom prompt BUT always prepend critical instructions
+                        personality_prompt = self.custom_prompts[team_num]
+                        instructions = critical_instructions + personality_prompt
+                    else:
+                        # Use default prompt with critical instructions
+                        default_personality = f"""You are {config['team_name']}, a fantasy football manager with {config['strategy']} strategy.
+
+PERSONALITY & STRATEGY:
 - Use LOTS of emojis that match your strategy! 🔥
 - Be EXTREMELY dramatic and over-the-top! 
 - Take your philosophy to the EXTREME!
@@ -189,6 +201,7 @@ PERSONALITY REQUIREMENTS:
 Your EXTREME philosophy: {config['philosophy']}
 
 BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
+                        instructions = critical_instructions + default_personality
                     
                     # Create agent
                     agent = await AnyAgent.create_async(

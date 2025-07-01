@@ -130,25 +130,32 @@ AGENT_START_DELAY = 0.5         # A2A startup spacing
 
 ## Recent Enhancements
 
-### 🎨 Custom Agent Prompts (NEW!)
-- **Customizable Personalities**: Edit system prompts for each agent
+### 🎨 Custom Agent Prompts (ENHANCED!)
+- **Customizable Personalities**: Edit personality and strategy for each agent
 - **Settings Buttons**: ⚙️ button on each agent card
 - **Live Editing**: Modify prompts before starting draft
 - **Prompt Persistence**: Custom prompts used throughout session
-- **Full Control**: Change strategy, personality, catchphrases
+- **Safe Customization**: Output format instructions are protected
 - **A2A Compatible**: Works with both Basic and A2A modes
 
 #### How to Use:
 1. Click ⚙️ Customize on any agent card
-2. Edit the system prompt in the text area
+2. Edit the personality and strategy in the text area
 3. Click 💾 Save to apply changes
 4. Start draft with customized agents
+
+#### Safety Features:
+- **Protected Output Format**: Critical JSON output instructions cannot be modified
+- **Automatic Prepending**: System always includes proper format instructions
+- **Clear Separation**: UI shows only editable personality/strategy parts
+- **Error Prevention**: Prevents users from breaking agent responses
 
 #### Example Customizations:
 - Make Team 1 obsessed with tight ends instead of WRs
 - Turn Team 3 into a modern analytics-based drafter
 - Create a peaceful Team 5 that never trash talks
 - Give agents specific player targets or avoid lists
+- Change personality traits while maintaining functionality
 
 ### Task ID Implementation
 - Simplified A2A conversation tracking

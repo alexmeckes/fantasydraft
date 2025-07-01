@@ -632,13 +632,10 @@ def create_gradio_interface():
                                 team1_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
                                 with gr.Column(visible=False) as team1_prompt_col:
                                     team1_prompt = gr.Textbox(
-                                        label="Team 1 System Prompt",
+                                        label="Team 1 Personality & Strategy (Output format is fixed)",
                                         value="""You are Team 1, a fantasy football manager with Zero RB strategy.
 
-For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
-For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
-
-PERSONALITY REQUIREMENTS:
+PERSONALITY & STRATEGY:
 - Use LOTS of emojis that match your strategy! 🔥
 - Be EXTREMELY dramatic and over-the-top! 
 - Take your philosophy to the EXTREME!
@@ -653,7 +650,8 @@ Your EXTREME philosophy: RUNNING BACKS ARE DEAD TO ME! 💀 While others waste e
 
 BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
                                         lines=15,
-                                        interactive=True
+                                        interactive=True,
+                                        info="Customize personality and strategy. Output format instructions are automatically included."
                                     )
                                     team1_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
@@ -674,13 +672,10 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯""",
                                 team2_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
                                 with gr.Column(visible=False) as team2_prompt_col:
                                     team2_prompt = gr.Textbox(
-                                        label="Team 2 System Prompt",
+                                        label="Team 2 Personality & Strategy (Output format is fixed)",
                                         value="""You are Team 2, a fantasy football manager with BPA (Best Player Available) strategy.
 
-For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
-For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
-
-PERSONALITY REQUIREMENTS:
+PERSONALITY & STRATEGY:
 - Use LOTS of emojis that match your strategy! 💎
 - Be EXTREMELY condescending about others' reaches!
 - Act like the SMARTEST person in the room!
@@ -694,7 +689,8 @@ Your EXTREME philosophy: PROCESS OVER EVERYTHING! 📊 I don't care about your "
 
 BE RUTHLESS! BE RIGHT! BE THE VALUE VULTURE! 🦅""",
                                         lines=15,
-                                        interactive=True
+                                        interactive=True,
+                                        info="Customize personality and strategy. Output format instructions are automatically included."
                                     )
                                     team2_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
@@ -715,13 +711,10 @@ BE RUTHLESS! BE RIGHT! BE THE VALUE VULTURE! 🦅""",
                                 team3_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
                                 with gr.Column(visible=False) as team3_prompt_col:
                                     team3_prompt = gr.Textbox(
-                                        label="Team 3 System Prompt",
+                                        label="Team 3 Personality & Strategy (Output format is fixed)",
                                         value="""You are Team 3, a fantasy football manager with Robust RB strategy.
 
-For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
-For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
-
-PERSONALITY REQUIREMENTS:
+PERSONALITY & STRATEGY:
 - Use LOTS of emojis that match your strategy! 💪
 - Be EXTREMELY old-school and stubborn!
 - HATE the modern passing game!
@@ -735,7 +728,8 @@ Your EXTREME philosophy: GROUND AND POUND FOREVER! 🏃‍♂️ These young pun
 
 BE STUBBORN! BE TRADITIONAL! ESTABLISH THE RUN! 🏈""",
                                         lines=15,
-                                        interactive=True
+                                        interactive=True,
+                                        info="Customize personality and strategy. Output format instructions are automatically included."
                                     )
                                     team3_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
@@ -770,13 +764,10 @@ BE STUBBORN! BE TRADITIONAL! ESTABLISH THE RUN! 🏈""",
                                 team5_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
                                 with gr.Column(visible=False) as team5_prompt_col:
                                     team5_prompt = gr.Textbox(
-                                        label="Team 5 System Prompt",
+                                        label="Team 5 Personality & Strategy (Output format is fixed)",
                                         value="""You are Team 5, a fantasy football manager with Upside Hunter strategy.
 
-For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
-For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
-
-PERSONALITY REQUIREMENTS:
+PERSONALITY & STRATEGY:
 - Use LOTS of emojis that match your strategy! 🚀
 - Be EXTREMELY risk-seeking and wild!
 - HATE safe, boring picks!
@@ -790,7 +781,8 @@ Your EXTREME philosophy: BOOM OR BUST, BABY! 💥 Why settle for consistent medi
 
 BE BOLD! BE RECKLESS! SWING FOR THE FENCES! ⚡""",
                                         lines=15,
-                                        interactive=True
+                                        interactive=True,
+                                        info="Customize personality and strategy. Output format instructions are automatically included."
                                     )
                                     team5_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                         
@@ -811,13 +803,10 @@ BE BOLD! BE RECKLESS! SWING FOR THE FENCES! ⚡""",
                                 team6_settings_btn = gr.Button("⚙️ Customize", size="sm", variant="secondary")
                                 with gr.Column(visible=False) as team6_prompt_col:
                                     team6_prompt = gr.Textbox(
-                                        label="Team 6 System Prompt",
+                                        label="Team 6 Personality & Strategy (Output format is fixed)",
                                         value="""You are Team 6, a fantasy football manager with BPA (Best Player Available) strategy.
 
-For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
-For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
-
-PERSONALITY REQUIREMENTS:
+PERSONALITY & STRATEGY:
 - Use LOTS of emojis that match your strategy! 📊
 - Be EXTREMELY analytical and cold!
 - Act like a PROFESSOR lecturing idiots!
@@ -831,7 +820,8 @@ Your EXTREME philosophy: THE SPREADSHEET NEVER LIES! 📈 I have SEVENTEEN model
 
 BE ANALYTICAL! BE MERCILESS! TRUST THE PROCESS! 🤖""",
                                         lines=15,
-                                        interactive=True
+                                        interactive=True,
+                                        info="Customize personality and strategy. Output format instructions are automatically included."
                                     )
                                     team6_save_btn = gr.Button("💾 Save", size="sm", variant="primary")
                     
