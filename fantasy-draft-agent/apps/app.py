@@ -880,6 +880,7 @@ BE ANALYTICAL! BE MERCILESS! TRUST THE PROCESS! 🤖""",
                     with gr.Row():
                         with gr.Column():
                             test_a2a_btn = gr.Button("🧪 Test A2A Dependencies & Ports", variant="primary", size="lg")
+                            test_network_btn = gr.Button("🌐 Test Network Connectivity", variant="secondary", size="lg")
                             
                     a2a_test_output = gr.Textbox(
                         label="Test Results", 
@@ -1135,6 +1136,55 @@ BE ANALYTICAL! BE MERCILESS! TRUST THE PROCESS! 🤖""",
             
             return "\n".join(test_results)
         
+        # Test network connectivity for A2A
+        async def test_network_connectivity():
+            """Test network connectivity for A2A servers."""
+            import httpx
+            
+            results = []
+            results.append("=== A2A Network Connectivity Test ===")
+            results.append(f"Running on HF Spaces: {bool(os.getenv('SPACE_ID'))}\n")
+            
+            # Test different host configurations
+            configs = [
+                ("localhost", 8000, "Local loopback"),
+                ("127.0.0.1", 8000, "IP loopback"),
+                ("0.0.0.0", 8000, "All interfaces"),
+            ]
+            
+            for host, port, desc in configs:
+                results.append(f"Testing {host}:{port} ({desc})...")
+                
+                timeout = httpx.Timeout(timeout=5.0, connect=2.0, read=5.0)
+                
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    # Test basic connectivity
+                    try:
+                        response = await client.get(f"http://{host}:{port}/")
+                        results.append(f"  ✅ Connected: HTTP {response.status_code}")
+                    except httpx.ConnectError:
+                        results.append(f"  ❌ Connection refused (no server)")
+                    except httpx.ReadTimeout:
+                        results.append(f"  ❌ Read timeout (server not responding)")
+                    except Exception as e:
+                        results.append(f"  ❌ Error: {type(e).__name__}")
+                
+                results.append("")
+            
+            results.append("=== Recommendations ===")
+            if os.getenv("SPACE_ID"):
+                results.append("On HF Spaces:")
+                results.append("• A2A servers bind to 0.0.0.0 for external access")
+                results.append("• Clients connect via 127.0.0.1 internally")
+                results.append("• Network timeouts are common - retries help")
+                results.append("• Consider Basic Multiagent mode for reliability")
+            else:
+                results.append("Local development:")
+                results.append("• Both localhost and 127.0.0.1 should work")
+                results.append("• Check firewall if connections fail")
+            
+            return "\n".join(results)
+        
         # No need for separate mode change handler - it happens when draft starts
         
         # Functions to handle prompt editing
@@ -1210,9 +1260,22 @@ BE ANALYTICAL! BE MERCILESS! TRUST THE PROCESS! 🤖""",
             show_progress=True
         )
         
-        # Wire up A2A test button
+        # Wrapper for async network test
+        def run_network_test():
+            """Run the async network test."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(test_network_connectivity())
+        
+        # Wire up test buttons
         test_a2a_btn.click(
             test_a2a_functionality,
+            [],
+            [a2a_test_output]
+        )
+        
+        test_network_btn.click(
+            run_network_test,
             [],
             [a2a_test_output]
         )
