@@ -64,6 +64,11 @@ class DynamicA2AAgentManager:
         import random
         return hashlib.md5(f"{time.time()}{random.random()}".encode()).hexdigest()[:8]
     
+    def _get_port_index(self, team_num: int) -> int:
+        """Get the port index for a team number."""
+        agent_teams = [1, 2, 3, 5, 6]
+        return agent_teams.index(team_num)
+    
     async def _find_available_ports(self, count: int = 5, start: int = 5000, end: int = 9000) -> List[int]:
         """Find available consecutive ports for agents."""
         async with self._port_lock:
@@ -233,8 +238,17 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                         task_timeout_minutes=30,
                     )
                     
+                    async def monitored_serve(agent, config, serving_config):
+                        """Wrapper to monitor serve task for crashes."""
+                        try:
+                            await agent.serve_async(serving_config)
+                        except Exception as e:
+                            print(f"❌ Server crashed for {config['team_name']}: {type(e).__name__}: {e}")
+                            # Remove from active tools to prevent timeout attempts
+                            self.agent_tools.pop(config['team_num'], None)
+                    
                     serve_task = asyncio.create_task(
-                        agent.serve_async(serving_config)
+                        monitored_serve(agent, config, serving_config)
                     )
                     self.serve_tasks.append(serve_task)
                     print(f"✅ Started {config['team_name']} on port {config['port']} (session: {self.session_id})")
