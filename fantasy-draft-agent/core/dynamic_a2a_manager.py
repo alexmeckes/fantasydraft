@@ -319,8 +319,21 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
         # Build the prompt with essential info
         available_str = format_available_players(available_players, TOP_PLAYERS)
         
-        # Simple prompt - let task_id maintain conversation history
-        prompt = f"""🚨 IT'S YOUR TIME TO DOMINATE! 🚨 (Round {round_num})
+        # Simplified prompt for Team 5 to reduce processing time
+        if team_num == 5:
+            # Team 5 gets a shorter prompt to process faster
+            prompt = f"""Round {round_num} - PICK NOW! 🚨
+
+Available: {', '.join(available_str[:8])}
+Your picks: {', '.join(previous_picks) if previous_picks else 'None'}
+
+OUTPUT JSON:
+{{"type": "pick", "player_name": "[PLAYER]", "reasoning": "UPSIDE! 🚀", "trash_talk": "BOOM!"}}
+
+Pick the highest UPSIDE player! 💥"""
+        else:
+            # Normal prompt for other teams
+            prompt = f"""🚨 IT'S YOUR TIME TO DOMINATE! 🚨 (Round {round_num})
         
 Available top players: {', '.join(available_str)}
 Your roster so far: {', '.join(previous_picks) if previous_picks else 'None yet'}
@@ -338,9 +351,13 @@ Example format:
 
 Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMINANCE! 🔥"""
         
-        # Retry logic for network issues
-        max_retries = 3
-        retry_delay = 2.0
+        # Retry logic with reduced delays for HF Spaces
+        max_retries = 2  # Reduced from 3
+        retry_delay = 0.5  # Reduced from 2.0
+        
+        # For Team 5 specifically, reduce retries to avoid long delays
+        if team_num == 5:
+            max_retries = 1
         
         for attempt in range(max_retries):
             try:
@@ -376,15 +393,21 @@ Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMIN
                     
             except Exception as e:
                 error_name = type(e).__name__
-                if attempt < max_retries - 1 and "timeout" in str(e).lower():
-                    print(f"⚠️ Timeout for Team {team_num} (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                is_timeout = "timeout" in str(e).lower() or "readtimeout" in error_name.lower()
+                
+                if attempt < max_retries - 1 and is_timeout:
+                    print(f"⚠️ Timeout for Team {team_num} (attempt {attempt + 1}/{max_retries}), retrying quickly...")
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
-                    print(f"❌ Error getting pick from Team {team_num}: {error_name}: {e}")
-                    if attempt == 0:  # Only print traceback on first failure
-                        import traceback
-                        traceback.print_exc()
+                    # For Team 5, don't print full traceback to reduce log spam
+                    if team_num == 5:
+                        print(f"⚠️ Team {team_num} timeout - falling back to simulation")
+                    else:
+                        print(f"❌ Error getting pick from Team {team_num}: {error_name}")
+                        if attempt == 0:  # Only print traceback on first failure
+                            import traceback
+                            traceback.print_exc()
                     return None
         
         return None
