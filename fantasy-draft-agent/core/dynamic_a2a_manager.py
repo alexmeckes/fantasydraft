@@ -205,13 +205,11 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     # On HF Spaces, we might need to bind to 0.0.0.0
                     host = "0.0.0.0" if os.getenv("SPACE_ID") else "localhost"
                     
-                    # Enhanced serving config for HF Spaces
+                    # Serving config for HF Spaces
                     serving_config = A2AServingConfig(
                         port=config['port'],
                         host=host,
                         task_timeout_minutes=30,
-                        # Additional settings for cloud environments
-                        debug=True if os.getenv("SPACE_ID") else False,
                     )
                     
                     serve_task = asyncio.create_task(
