@@ -57,6 +57,7 @@ class DynamicA2AAgentManager:
         self.max_comments_per_pick = max_comments_per_pick
         self.allocated_ports = []
         self.custom_prompts = custom_prompts or {}  # Store custom prompts
+        self.request_counts = {}  # Track requests per agent for memory management
         
     def _generate_session_id(self) -> str:
         """Generate a unique session ID."""
@@ -208,7 +209,7 @@ Your EXTREME philosophy: {config['philosophy']}
 BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                         instructions = critical_instructions + default_personality
                     
-                    # Create agent
+                    # Create agent with memory-efficient settings
                     agent = await AnyAgent.create_async(
                         "tinyagent",
                         AgentConfig(
@@ -217,10 +218,11 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                             description=f"{config['team_name']} - {config['strategy']} fantasy football team manager",
                             instructions=instructions,
                             output_type=A2AOutput,
-                            # Force JSON output mode
+                            # Force JSON output mode and limit context
                             agent_args={
                                 "temperature": 0.8,
-                                "response_format": {"type": "json_object"}
+                                "response_format": {"type": "json_object"},
+                                "max_tokens": 200,  # Limit response size
                             }
                         )
                     )
@@ -271,18 +273,30 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                     # On HF Spaces, we might need to use 127.0.0.1 for internal communication
                     host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
                     tool_url = f"http://{host}:{config['port']}"
-                    # Use httpx timeout with longer settings for HF Spaces
+                    # Use httpx with connection pooling limits
                     import httpx
                     timeout_config = httpx.Timeout(
                         timeout=DEFAULT_TIMEOUT,
                         connect=30.0,  # Connection timeout
-                        read=60.0,     # Read timeout
+                        read=90.0,     # Read timeout
                         write=30.0,    # Write timeout
                         pool=30.0      # Pool timeout
                     )
+                    
+                    # Create custom HTTP client with connection limits
+                    limits = httpx.Limits(
+                        max_keepalive_connections=2,  # Limit persistent connections
+                        max_connections=5,            # Total connection limit
+                        keepalive_expiry=30.0        # Close idle connections after 30s
+                    )
+                    
                     self.agent_tools[team_num] = await a2a_tool_async(
                         tool_url,
-                        http_kwargs={"timeout": timeout_config}
+                        http_kwargs={
+                            "timeout": timeout_config,
+                            "limits": limits,
+                            "http2": False  # Disable HTTP/2 for stability
+                        }
                     )
                     print(f"✅ Created A2A tool for Team {team_num} at {tool_url}")
                     
@@ -324,46 +338,119 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
         
         print(f"✅ A2A agents stopped and ports released for session {self.session_id}")
     
+    async def check_and_restart_agent(self, team_num: int) -> bool:
+        """Check if agent is alive and restart if needed."""
+        if team_num not in self.agent_tools:
+            return False
+            
+        # Quick health check
+        try:
+            import httpx
+            port_idx = self._get_port_index(team_num)
+            port = self.allocated_ports[port_idx]
+            host = "127.0.0.1" if os.getenv("SPACE_ID") else "localhost"
+            
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                # Try to get agent metadata
+                response = await client.get(f"http://{host}:{port}/.well-known/agent.json")
+                if response.status_code == 200:
+                    return True  # Agent is alive
+        except Exception:
+            pass
+        
+        # Agent is dead, try to restart
+        print(f"⚠️ Team {team_num} server not responding, attempting restart...")
+        
+        # Find the original config
+        original_config = next(c for c in AGENT_CONFIGS if c['team_num'] == team_num)
+        config = original_config.copy()
+        config['port'] = self.allocated_ports[self._get_port_index(team_num)]
+        
+        try:
+            # Create new agent with same config
+            agent = self.agents.get(team_num)
+            if agent:
+                # Start serving again
+                host = "0.0.0.0" if os.getenv("SPACE_ID") else "localhost"
+                serving_config = A2AServingConfig(
+                    port=config['port'],
+                    host=host,
+                    task_timeout_minutes=30,
+                )
+                
+                async def monitored_serve(agent, config, serving_config):
+                    """Wrapper to monitor serve task for crashes."""
+                    try:
+                        await agent.serve_async(serving_config)
+                    except Exception as e:
+                        print(f"❌ Server crashed for {config['team_name']}: {type(e).__name__}: {e}")
+                        self.agent_tools.pop(config['team_num'], None)
+                
+                serve_task = asyncio.create_task(
+                    monitored_serve(agent, config, serving_config)
+                )
+                
+                # Replace old task
+                for i, task in enumerate(self.serve_tasks):
+                    if not task.done():
+                        continue
+                    self.serve_tasks[i] = serve_task
+                    break
+                
+                # Wait for restart
+                await asyncio.sleep(2.0)
+                
+                # Recreate tool
+                tool_url = f"http://127.0.0.1:{config['port']}"
+                import httpx
+                timeout_config = httpx.Timeout(timeout=90.0, connect=30.0, read=90.0, write=30.0, pool=30.0)
+                limits = httpx.Limits(max_keepalive_connections=2, max_connections=5, keepalive_expiry=30.0)
+                
+                self.agent_tools[team_num] = await a2a_tool_async(
+                    tool_url,
+                    http_kwargs={"timeout": timeout_config, "limits": limits, "http2": False}
+                )
+                
+                print(f"✅ Restarted Team {team_num} on port {config['port']}")
+                return True
+                
+        except Exception as e:
+            print(f"❌ Failed to restart Team {team_num}: {e}")
+            self.agent_tools.pop(team_num, None)
+            
+        return False
+    
     async def get_pick(self, team_num: int, available_players: List[str], 
                       previous_picks: List[str], round_num: int = 1) -> Optional[A2AOutput]:
         """Get a pick from an A2A agent."""
         if team_num not in self.agent_tools:
             return None
         
-        # Build the prompt with essential info
-        available_str = format_available_players(available_players, TOP_PLAYERS)
+        # Check if agent is alive, restart if needed
+        agent_alive = await self.check_and_restart_agent(team_num)
+        if not agent_alive:
+            print(f"❌ Team {team_num} could not be restarted")
+            return None
         
-        # Simplified prompt for Team 5 to reduce processing time
+        # Build minimal prompts to prevent memory buildup
+        # Only show top 12 players to reduce context
+        top_available = available_players[:12]
+        available_str = ", ".join(top_available)
+        
+        # Ultra-minimal prompts for efficiency
         if team_num == 5:
-            # Team 5 gets a shorter prompt to process faster
-            prompt = f"""Round {round_num} - PICK NOW! 🚨
-
-Available: {', '.join(available_str[:8])}
-Your picks: {', '.join(previous_picks) if previous_picks else 'None'}
-
-OUTPUT JSON:
-{{"type": "pick", "player_name": "[PLAYER]", "reasoning": "UPSIDE! 🚀", "trash_talk": "BOOM!"}}
-
-Pick the highest UPSIDE player! 💥"""
+            # Team 5 gets the most minimal prompt
+            prompt = f"""R{round_num}: {available_str[:60]}...
+PICK NOW! {{"type":"pick","player_name":"[PLAYER]","reasoning":"UPSIDE!","trash_talk":"BOOM!"}}"""
         else:
-            # Normal prompt for other teams
-            prompt = f"""🚨 IT'S YOUR TIME TO DOMINATE! 🚨 (Round {round_num})
-        
-Available top players: {', '.join(available_str)}
-Your roster so far: {', '.join(previous_picks) if previous_picks else 'None yet'}
+            # Compact prompt for other teams
+            recent_picks = previous_picks[-2:] if previous_picks else []
+            prompt = f"""Round {round_num} PICK! 🔥
+Available: {available_str}
+Your picks: {', '.join(recent_picks)}
 
-Make your pick and DESTROY the competition! 💪
-
-IMPORTANT: You MUST output a valid A2AOutput JSON object with:
-- type: "pick" (REQUIRED - this is a PICK, not a comment!)
-- player_name: Choose ONE player from the available list above
-- reasoning: Your strategy explanation with emojis
-- trash_talk: Optional savage comment
-
-Example format:
-{{"type": "pick", "player_name": "CeeDee Lamb", "reasoning": "BOOM! 💥 Getting the most EXPLOSIVE WR!", "trash_talk": "Safe picks are for LOSERS!"}}
-
-Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMINANCE! 🔥"""
+MUST output JSON: {{"type":"pick","player_name":"[FROM LIST]","reasoning":"[WHY]","trash_talk":"[OPTIONAL]"}}
+Pick NOW! 💪"""
         
         # Retry logic with reduced delays for HF Spaces
         max_retries = 2  # Reduced from 3
@@ -375,6 +462,15 @@ Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMIN
         
         for attempt in range(max_retries):
             try:
+                # Track request count for memory management
+                self.request_counts[team_num] = self.request_counts.get(team_num, 0) + 1
+                
+                # Reset task_id every 10 requests to prevent memory buildup
+                if self.request_counts[team_num] > 10:
+                    self.task_ids.pop(team_num, None)
+                    self.request_counts[team_num] = 0
+                    print(f"🔄 Resetting context for Team {team_num} to prevent memory buildup")
+                
                 # Use task_id if we have one for this agent
                 task_id = self.task_ids.get(team_num)
                 result = await self.agent_tools[team_num](prompt, task_id=task_id)
@@ -432,21 +528,9 @@ Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMIN
         if commenting_team not in self.agent_tools:
             return None
         
-        # Simple prompt - let task_id maintain conversation history  
-        prompt = f"""🎯 Team {picking_team} just picked {player_picked}! 
-
-This is your chance to DESTROY them with your superior knowledge! 💥
-
-IMPORTANT: Output a valid A2AOutput JSON object with:
-- type: "comment" (REQUIRED)
-- should_comment: true or false (do you want to comment?)
-- comment: Your DEVASTATING comment with emojis (if should_comment is true)
-
-Example format:
-{{"type": "comment", "should_comment": true, "comment": "TERRIBLE pick! 😂 {player_picked} is OVERRATED!"}}
-
-If they're your RIVAL, make it PERSONAL! If they made a BAD pick, ROAST THEM! 🔥
-Use emojis to make your point UNFORGETTABLE! 😈"""
+        # Minimal comment prompt
+        prompt = f"""Team {picking_team} picked {player_picked}!
+COMMENT? {{"type":"comment","should_comment":true/false,"comment":"[ROAST THEM!]"}}"""
         
         # Retry logic for network issues
         max_retries = 2  # Fewer retries for comments to avoid delays

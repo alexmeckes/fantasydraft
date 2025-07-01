@@ -609,17 +609,17 @@ def create_gradio_interface():
                         with gr.Column():
                             gr.Markdown("### 🔧 Communication Mode")
                             communication_mode = gr.Radio(
-                                ["Basic Multiagent", "A2A (Experimental)"],
-                                value="Basic Multiagent",
+                                ["A2A", "Basic Multiagent"],
+                                value="A2A",
                                 label="Select how agents communicate",
-                                info="Basic Multiagent: Reliable single-process execution (Recommended) | A2A: Distributed but may timeout on cloud"
+                                info="A2A: Distributed agents on HTTP servers | Basic Multiagent: Single-process execution"
                             )
                             mode_info = gr.Markdown(
                                 """
-                                **Basic Multiagent** (Recommended): Fast, reliable execution with full agent personalities
-                                **A2A (Experimental)**: Distributed architecture with separate HTTP servers per agent
+                                **A2A**: Each agent runs on its own HTTP server with true distributed architecture
+                                **Basic Multiagent**: Fast single-process execution for simpler deployments
                                 
-                                *Note: A2A mode may experience timeouts on cloud deployments. Use Basic Multiagent for best experience.*
+                                *A2A mode provides the most realistic multi-agent experience.*
                                 """
                             )
                     
@@ -1224,7 +1224,7 @@ BE ANALYTICAL! BE MERCILESS! TRUST THE PROCESS! 🤖""",
             if prompts_dict:
                 app.custom_prompts = prompts_dict
             
-            use_a2a = (mode == "A2A (Experimental)")
+            use_a2a = (mode == "A2A")
             for output in app.run_multiagent_demo(use_a2a):
                 result = check_user_turn(output, app)
                 yield result + (app,)  # Return the app state as the last element
