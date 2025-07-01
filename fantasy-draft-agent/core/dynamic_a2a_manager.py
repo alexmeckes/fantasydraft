@@ -169,8 +169,11 @@ class DynamicA2AAgentManager:
                         # Use default prompt
                         instructions = f"""You are {config['team_name']}, a fantasy football manager with {config['strategy']} strategy.
 
-For picks: Return A2AOutput with type="pick", player_name, reasoning, and optional trash_talk.
-For comments: Return A2AOutput with type="comment", should_comment (true/false), and comment.
+CRITICAL OUTPUT INSTRUCTIONS:
+For picks: You MUST return a JSON object with type="pick", player_name (from available list), reasoning, and optional trash_talk.
+For comments: You MUST return a JSON object with type="comment", should_comment (true/false), and comment.
+
+NEVER respond with plain text when asked to make a pick! Always use the structured format!
 
 PERSONALITY REQUIREMENTS:
 - Use LOTS of emojis that match your strategy! 🔥
@@ -196,6 +199,11 @@ BE LOUD! BE PROUD! BE UNFORGETTABLE! 🎯"""
                             description=f"{config['team_name']} - {config['strategy']} fantasy football team manager",
                             instructions=instructions,
                             output_type=A2AOutput,
+                            # Force JSON output mode
+                            agent_args={
+                                "temperature": 0.8,
+                                "response_format": {"type": "json_object"}
+                            }
                         )
                     )
                     
@@ -305,7 +313,16 @@ Available top players: {', '.join(available_str)}
 Your roster so far: {', '.join(previous_picks) if previous_picks else 'None yet'}
 
 Make your pick and DESTROY the competition! 💪
-Output an A2AOutput with type="pick", player_name, reasoning (with emojis!), and SAVAGE trash_talk!
+
+IMPORTANT: You MUST output a valid A2AOutput JSON object with:
+- type: "pick" (REQUIRED - this is a PICK, not a comment!)
+- player_name: Choose ONE player from the available list above
+- reasoning: Your strategy explanation with emojis
+- trash_talk: Optional savage comment
+
+Example format:
+{{"type": "pick", "player_name": "CeeDee Lamb", "reasoning": "BOOM! 💥 Getting the most EXPLOSIVE WR!", "trash_talk": "Safe picks are for LOSERS!"}}
+
 Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMINANCE! 🔥"""
         
         # Retry logic for network issues
@@ -327,12 +344,22 @@ Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMIN
                 output = parse_a2a_response(result, A2AOutput)
                 if output:
                     print(f"✅ Team {team_num} pick: {output.player_name}")
+                    return output
                 else:
                     print(f"❌ Failed to parse response from Team {team_num}")
-                    if isinstance(result, str) and len(result) > 100:
-                        # Show compact preview for debugging
-                        print(f"   Response format issue - check a2a_helpers.py parsing")
-                return output
+                    if isinstance(result, str):
+                        print(f"   Raw response: {result[:200]}...")
+                        # Try to extract player name from plain text as fallback
+                        for player in available_players[:20]:
+                            if player in str(result):
+                                print(f"   Fallback: Found {player} in response, creating pick")
+                                return A2AOutput(
+                                    type="pick",
+                                    player_name=player,
+                                    reasoning="[Agent response was not in correct format]",
+                                    trash_talk=None
+                                )
+                    return None
                     
             except Exception as e:
                 error_name = type(e).__name__
@@ -359,7 +386,15 @@ Remember your ENEMIES and CRUSH their dreams! Use emojis to emphasize your DOMIN
         prompt = f"""🎯 Team {picking_team} just picked {player_picked}! 
 
 This is your chance to DESTROY them with your superior knowledge! 💥
-Should you UNLEASH your wisdom? Output an A2AOutput with type="comment", should_comment (true/false), and a DEVASTATING comment with emojis!
+
+IMPORTANT: Output a valid A2AOutput JSON object with:
+- type: "comment" (REQUIRED)
+- should_comment: true or false (do you want to comment?)
+- comment: Your DEVASTATING comment with emojis (if should_comment is true)
+
+Example format:
+{{"type": "comment", "should_comment": true, "comment": "TERRIBLE pick! 😂 {player_picked} is OVERRATED!"}}
+
 If they're your RIVAL, make it PERSONAL! If they made a BAD pick, ROAST THEM! 🔥
 Use emojis to make your point UNFORGETTABLE! 😈"""
         
