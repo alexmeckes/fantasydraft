@@ -5,31 +5,18 @@ python-dotenv
 pydantic>=2.0.0
 typing-extensions
 nest-asyncio
-aiohttp
 
-# Step 2: Install a2a-sdk (provides 'a2a' module)
-# Pin to specific version for consistency
-a2a-sdk==0.2.9
-
-# Step 3: Install any-agent with both a2a and openai extras
+# Step 2: Install any-agent with OpenAI support
 # Version 0.22+ required for any_agent.serving module
-any-agent[a2a,openai]>=0.22.0
+any-agent[openai]>=0.22.0
 
-# Step 4: Additional dependencies (if not pulled in by any-agent)
+# Step 3: Additional dependencies (if not pulled in by any-agent)
 # These might already be installed by any-agent[openai] but we list them to be sure
 openai>=1.0.0
 litellm>=1.0.0
 
-# Step 5: Gradio last (it has many dependencies)
+# Step 4: Gradio last (it has many dependencies)
 gradio==4.36.0
 
 # Compatibility pins to satisfy transitive dependency constraints discovered during HF Spaces build
 markupsafe==2.1.5           # gradio constraint (~=2.0)
-fsspec>=2023.1.0,<=2025.3.0 # datasets constraint (<=2025.3.0)
-
-# Optional: HTTP dependencies for lightweight A2A
-httpx>=0.24.0
-fastapi>=0.115.0
-uvicorn>=0.22.0
-starlette>=0.46.0,<0.47.0
-sse-starlette>=2.3.6,<2.4.0

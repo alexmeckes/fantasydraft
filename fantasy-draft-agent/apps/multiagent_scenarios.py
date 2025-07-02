@@ -16,7 +16,7 @@ def format_agent_message(agent, recipient: str, message: str,
     if isinstance(agent, str) and agent.startswith("typing_"):
         # Extract the team name from typing_Team X
         team_name = agent.replace("typing_", "")
-        return f'<div style="color: #666; font-style: italic; margin: 5px 0;">💭 *{team_name} is typing...*</div>\n\n'
+        return f'<div style="font-style: italic; margin: 5px 0;">💭 *{team_name} is typing...*</div>\n\n'
     
     # Agent colors and styles
     agent_styles = {
@@ -72,22 +72,22 @@ def format_agent_message(agent, recipient: str, message: str,
     
     # Header with sender/recipient
     if agent == "system" or icon == "💭":
-        # System messages are centered and italicized
-        html = f'<div style="text-align: center; margin: 10px 0; color: #424242;">\n\n'
-        html += f'<span style="color: #424242;">*{message}*</span>\n\n'
+        # System messages are centered and italicized - no color specified, let CSS handle it
+        html = f'<div style="text-align: center; margin: 10px 0;">\n\n'
+        html += f'<span>*{message}*</span>\n\n'
         html += '</div>\n\n'
         return html
     elif recipient == "ALL":
-        html += f'<span style="color: #212121;">**{icon} {name}**</span>\n\n'
+        html += f'<span>**{icon} {name}**</span>\n\n'
     elif recipient == "USER":
-        html += f'<span style="color: #212121;">**{icon} {name} → You**</span>\n\n'
+        html += f'<span>**{icon} {name} → You**</span>\n\n'
     elif show_arrow:
-        html += f'<span style="color: #212121;">**{icon} {name} → {recipient}**</span>\n\n'
+        html += f'<span>**{icon} {name} → {recipient}**</span>\n\n'
     else:
-        html += f'<span style="color: #212121;">**{icon} {name}**</span>\n\n'
+        html += f'<span>**{icon} {name}**</span>\n\n'
     
-    # Message content
-    html += f'<span style="color: #212121;">{message}</span>\n\n'
+    # Message content - no color specified, let CSS handle it
+    html += f'{message}\n\n'
     html += '</div>\n\n'
     
     return html
@@ -110,8 +110,7 @@ def format_memory_indicator(round_num: int, memories: list) -> str:
     
     output = '<div style="background-color: #F5F5F5; '
     output += 'border: 2px dashed #9E9E9E; '
-    output += 'padding: 12px; border-radius: 8px; margin: 15px 0; '
-    output += 'color: #424242;">\n\n'
+    output += 'padding: 12px; border-radius: 8px; margin: 15px 0;">\n\n'
     output += f'**💭 DRAFT MEMORY (Round {round_num})**\n\n'
     
     for memory in memories:
@@ -152,17 +151,26 @@ def create_mock_draft_visualization(draft: MultiAgentMockDraft,
     return output
 
 
-def run_interactive_mock_draft():
+def run_interactive_mock_draft(custom_prompts=None):
     """Run an interactive mock draft demo that yields formatted output."""
     
-    # Initialize the draft
-    draft = MultiAgentMockDraft(user_pick_position=4)
-    
-    # Skip introductions and go straight to commissioner welcome
-    output = format_agent_message("commissioner", "ALL", 
-        "Welcome to the draft! 6 teams, 3 rounds, snake format. Let's get started!")
-    
-    yield output
+    try:
+        # Initialize the draft
+        print("Initializing MultiAgentMockDraft...")
+        draft = MultiAgentMockDraft(user_pick_position=4, custom_prompts=custom_prompts)
+        print("Draft initialized successfully")
+        
+        # Skip introductions and go straight to commissioner welcome
+        output = format_agent_message("commissioner", "ALL", 
+            "Welcome to the draft! 6 teams, 3 rounds, snake format. Let's get started!")
+        
+        yield output
+    except Exception as e:
+        print(f"Error in run_interactive_mock_draft: {e}")
+        import traceback
+        traceback.print_exc()
+        yield f"Error initializing draft: {str(e)}"
+        return
     
     # Track memories for demonstration
     draft_memories = []

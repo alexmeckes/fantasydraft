@@ -7,7 +7,7 @@ A focused demonstration of AI agents with distinct strategies competing in a moc
 This project showcases:
 - **Multi-Turn Conversations**: AI agents that maintain context across multiple interactions
 - **Multi-Agent Mock Drafts**: Six AI agents with distinct strategies competing in real-time
-- **Agent-to-Agent (A2A) Communication**: Agents comment on and respond to each other's picks
+- **Agent Communication**: Agents comment on and respond to each other's picks
 - **Interactive Web Interface**: Beautiful Gradio UI with multiple tabs for different features
 
 ## Key Features
@@ -73,7 +73,7 @@ fantasy-draft-agent/
 ├── data.py               # Static NFL player database
 ├── demo.py               # CLI demonstration
 ├── multiagent_draft.py   # Multi-agent mock draft implementation
-├── multiagent_scenarios.py # A2A communication scenarios
+├── multiagent_scenarios.py # Agent communication scenarios
 ├── scenarios.py          # Pre-crafted demo scenarios
 └── visualizer.py         # ASCII visualizations
 ```
@@ -88,8 +88,8 @@ fantasy-draft-agent/
 
 Perfect for LinkedIn demonstrations:
 1. **Multi-Turn Conversations**: Shows context retention across interactions
-2. **Mock Draft**: Interactive 6-team draft with A2A communication
-3. **Quick A2A Demo**: Agents debating strategy in real-time
+2. **Mock Draft**: Interactive 6-team draft with agent communication
+3. **Quick Demo**: Agents debating strategy in real-time
 
 ## Technical Details
 

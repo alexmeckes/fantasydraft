@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Multi-Agent Mock Draft Implementation
-Demonstrates A2A communication and multi-turn memory
+Demonstrates agent communication and multi-turn memory
 """
 
 import time
@@ -16,21 +16,34 @@ import random
 
 # Enhanced agents not available in the reorganized structure
 USE_ENHANCED = False
-# Removed misleading print statement - mode is determined at runtime
 
 
 class DraftAgent:
     """Base class for draft agents with specific strategies."""
     
-    def __init__(self, team_name: str, strategy: str, color: str, icon: str):
+    def __init__(self, team_name: str, strategy: str, color: str, icon: str, custom_instructions: Optional[str] = None):
         self.team_name = team_name
         self.strategy = strategy
         self.color = color
         self.icon = icon
-        self.agent = FantasyDraftAgent()
+        self.custom_instructions = custom_instructions
+        
+        # Debug: Log if custom instructions are received
+        if custom_instructions:
+            print(f"DEBUG: {team_name} initialized WITH custom instructions ({len(custom_instructions)} chars)")
+        else:
+            print(f"DEBUG: {team_name} initialized WITHOUT custom instructions")
+        
+        # Create agent with custom instructions if provided
+        if custom_instructions:
+            self.agent = FantasyDraftAgent(custom_instructions=custom_instructions)
+        else:
+            self.agent = FantasyDraftAgent()
+            
         self.picks = []
         self.conversation_memory = []
         
+
     def remember_conversation(self, speaker: str, message: str):
         """Store conversation in memory."""
         self.conversation_memory.append({
@@ -53,7 +66,19 @@ class DraftAgent:
             adp_int = 1
         adp_description = f"ranked #{adp_int} overall" if adp_int <= 10 else f"typically drafted around pick #{adp_int}"
         
-        context = f"""You are {self.team_name}, a fantasy football team manager following a {self.strategy}.
+        if self.custom_instructions:
+            # Use custom instructions with minimal context
+            context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name}
+- Your picks so far: {', '.join(self.picks) if self.picks else 'None yet'}
+- {team} just picked {player} ({player_info['pos']}, {adp_description}, Tier: {player_info['tier']})
+
+Provide a short comment on this pick based on your personality and strategy. Keep it under 2 sentences."""
+        else:
+            # Use default context
+            context = f"""You are {self.team_name}, a fantasy football team manager following a {self.strategy}.
 Your picks so far: {', '.join(self.picks) if self.picks else 'None yet'}
 
 {team} just picked {player} ({player_info['pos']}, {adp_description}, Tier: {player_info['tier']}).
@@ -72,7 +97,19 @@ IMPORTANT: Don't mention raw ADP numbers like "1.5" - use natural language like 
         # Build conversation context
         recent_memory = self.conversation_memory[-5:] if len(self.conversation_memory) > 5 else self.conversation_memory
         
-        context = f"""You are {self.team_name}, following a {self.strategy} in a fantasy draft.
+        if self.custom_instructions:
+            # Use custom instructions with minimal context
+            context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name}
+- Your picks: {', '.join(self.picks) if self.picks else 'None yet'}
+- {commenter} just said to you: "{comment}"
+
+Respond based on your personality. Keep it to 1-2 sentences."""
+        else:
+            # Use default context
+            context = f"""You are {self.team_name}, following a {self.strategy} in a fantasy draft.
 Your picks: {', '.join(self.picks) if self.picks else 'None yet'}
 
 {commenter} just said to you: "{comment}"
@@ -91,8 +128,8 @@ Don't be polite - show confidence and give as good as you get."""
 class ZeroRBAgent(DraftAgent):
     """Agent that follows Zero RB strategy."""
     
-    def __init__(self, team_name: str):
-        super().__init__(team_name, "Zero RB Strategy", "#E3F2FD", "📘")
+    def __init__(self, team_name: str, custom_instructions: Optional[str] = None):
+        super().__init__(team_name, "Zero RB Strategy", "#E3F2FD", "📘", custom_instructions)
         self.person_emoji = "🤓"  # Analytical nerd
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
@@ -118,7 +155,19 @@ class ZeroRBAgent(DraftAgent):
                 else:
                     adp_desc = f"ranked around #{adp_int}"
                 
-                context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
+                if self.custom_instructions:
+                    # Use custom instructions with minimal context
+                    context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name} in round {round_num}
+- Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+- You're selecting {player} (WR, {player_info['team']}, {adp_desc})
+
+Explain your pick in 1-2 sentences based on your personality and strategy."""
+                else:
+                    # Use default context  
+                    context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 
 You're selecting {player} (WR, {player_info['team']}, {adp_desc}).
@@ -148,7 +197,19 @@ Don't use raw numbers like "1.5" or "ADP 12" - use natural language."""
             else:
                 adp_desc = f"ranked #{adp_int}" if adp_int > 30 else f"a round {(adp_int-1)//12 + 1} talent"
             
-            context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
+            if self.custom_instructions:
+                # Use custom instructions with minimal context
+                context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name} in round {round_num}
+- Your previous picks: {', '.join(self.picks)}
+- You're selecting {player} ({pos}, {player_info['team']}, {adp_desc})
+
+Explain your pick in 1-2 sentences based on your personality and strategy."""
+            else:
+                # Use default context
+                context = f"""You are {self.team_name} following a Zero RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks)}
 
 You're selecting {player} ({pos}, {player_info['team']}, {adp_desc}).
@@ -169,8 +230,8 @@ Use terms like "value", "steal", "while others reached" - not raw numbers."""
 class BPAAgent(DraftAgent):
     """Agent that follows Best Player Available strategy."""
     
-    def __init__(self, team_name: str):
-        super().__init__(team_name, "Best Player Available", "#E8F5E9", "📗")
+    def __init__(self, team_name: str, custom_instructions: Optional[str] = None):
+        super().__init__(team_name, "Best Player Available", "#E8F5E9", "📗", custom_instructions)
         self.person_emoji = "🧑‍💼"  # Business-like, calculated
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
@@ -194,7 +255,19 @@ class BPAAgent(DraftAgent):
             else:
                 adp_desc = f"ranked #{adp_int} overall"
             
-            context = f"""You are {self.team_name} following a Best Player Available strategy.
+            if self.custom_instructions:
+                # Use custom instructions with minimal context
+                context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name} in round {len(self.picks) + 1}
+- Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+- You're selecting {player} ({pos}, {player_info['team']}, {adp_desc})
+
+Explain your pick in 1-2 sentences based on your personality and strategy."""
+            else:
+                # Use default context
+                context = f"""You are {self.team_name} following a Best Player Available strategy.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 Round: {len(self.picks) + 1}
 
@@ -216,8 +289,8 @@ Don't use raw ADP numbers - use terms like "best available", "top-ranked", "obvi
 class RobustRBAgent(DraftAgent):
     """Agent that follows Robust RB strategy."""
     
-    def __init__(self, team_name: str):
-        super().__init__(team_name, "Robust RB Strategy", "#FFF3E0", "📙")
+    def __init__(self, team_name: str, custom_instructions: Optional[str] = None):
+        super().__init__(team_name, "Robust RB Strategy", "#FFF3E0", "📙", custom_instructions)
         self.person_emoji = "🧔"  # Old-school, traditional
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
@@ -242,7 +315,19 @@ class RobustRBAgent(DraftAgent):
                 else:
                     adp_desc = "a solid running back"
                 
-                context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
+                if self.custom_instructions:
+                    # Use custom instructions with minimal context
+                    context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name} in round {round_num}
+- Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+- You're selecting {player} (RB, {player_info['team']}, {adp_desc})
+
+Explain your pick in 1-2 sentences based on your personality and strategy."""
+                else:
+                    # Use default context
+                    context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 
 You're selecting {player} (RB, {player_info['team']}, {adp_desc}).
@@ -274,7 +359,19 @@ Use terms like "workhorse", "bell cow", "foundation" - not raw numbers."""
             else:
                 adp_desc = f"ranked #{adp_int}"
             
-            context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
+            if self.custom_instructions:
+                # Use custom instructions with minimal context
+                context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name} in round {round_num}
+- Your previous picks: {', '.join(self.picks)}
+- You're selecting {player} ({player_info['pos']}, {player_info['team']}, {adp_desc})
+
+Explain your pick in 1-2 sentences based on your personality and strategy."""
+            else:
+                # Use default context
+                context = f"""You are {self.team_name} following a Robust RB strategy in round {round_num}.
 Your previous picks: {', '.join(self.picks)}
 
 You're selecting {player} ({player_info['pos']}, {player_info['team']}, {adp_desc}).
@@ -292,8 +389,8 @@ Focus on your "foundation" and "championship formula" - avoid raw rankings."""
 class UpsideAgent(DraftAgent):
     """Agent that hunts for upside/breakout players."""
     
-    def __init__(self, team_name: str):
-        super().__init__(team_name, "Upside Hunter", "#FFFDE7", "📓")
+    def __init__(self, team_name: str, custom_instructions: Optional[str] = None):
+        super().__init__(team_name, "Upside Hunter", "#FFFDE7", "📓", custom_instructions)
         self.person_emoji = "🤠"  # Risk-taking cowboy
     
     def make_pick(self, available_players: List[str], draft_board: Dict) -> Tuple[str, str]:
@@ -312,7 +409,19 @@ class UpsideAgent(DraftAgent):
             adp_int = int(player_info['adp'])
             adp_desc = "a sleeper pick" if adp_int > 36 else "someone with untapped potential"
             
-            context = f"""You are {self.team_name}, an Upside Hunter who looks for breakout potential.
+            if self.custom_instructions:
+                # Use custom instructions with minimal context
+                context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name} in round {len(self.picks) + 1}
+- Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+- You're reaching slightly for {player} ({player_info['pos']}, {player_info['team']}, {adp_desc})
+
+Explain your pick in 1-2 sentences based on your personality and strategy."""
+            else:
+                # Use default context
+                context = f"""You are {self.team_name}, an Upside Hunter who looks for breakout potential.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 Round: {len(self.picks) + 1}
 
@@ -339,7 +448,19 @@ Talk about "upside", "ceiling", "league-winner" - not specific rankings."""
             else:
                 adp_desc = "a potential breakout"
             
-            context = f"""You are {self.team_name}, an Upside Hunter who looks for league-winners.
+            if self.custom_instructions:
+                # Use custom instructions with minimal context
+                context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- You are {self.team_name} in round {len(self.picks) + 1}
+- Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
+- You're selecting {player} ({player_info['pos']}, {player_info['team']}, {adp_desc})
+
+Explain your pick in 1-2 sentences based on your personality and strategy."""
+            else:
+                # Use default context
+                context = f"""You are {self.team_name}, an Upside Hunter who looks for league-winners.
 Your previous picks: {', '.join(self.picks) if self.picks else 'None'}
 Round: {len(self.picks) + 1}
 
@@ -359,8 +480,8 @@ Use exciting terms like "breakout", "league-winner", "explosive" - not rankings.
 class UserAdvisorAgent(DraftAgent):
     """Agent that advises the user during their picks."""
     
-    def __init__(self):
-        super().__init__("Your Advisor", "Strategic Advisor", "#FFEBEE", "📕")
+    def __init__(self, custom_instructions: Optional[str] = None):
+        super().__init__("Your Advisor", "Strategic Advisor", "#FFEBEE", "📕", custom_instructions)
         self.person_emoji = "🧙"  # Wise advisor
         self.user_picks = []
     
@@ -394,7 +515,25 @@ class UserAdvisorAgent(DraftAgent):
                     other_picks_summary.append(f"Team {team} ({other_agents_strategies.get(f'Team {team}', 'Unknown')}): {recent_pick}")
         
         # Build context for LLM
-        context = f"""You are an expert fantasy football advisor helping the user in round {round_num} of their draft.
+        if self.custom_instructions:
+            # Use custom instructions with minimal context
+            context = f"""{self.custom_instructions}
+
+CURRENT SITUATION:
+- Round {round_num} of the draft
+- User's current roster:
+  - RBs: {', '.join(user_rbs) if user_rbs else 'None'}
+  - WRs: {', '.join(user_wrs) if user_wrs else 'None'}
+- Top available players:
+  - Best RB: {best_by_pos.get('RB', [None])[0]} {f"(ranked #{int(best_by_pos.get('RB', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('RB') else ""}
+  - Best WR: {best_by_pos.get('WR', [None])[0]} {f"(ranked #{int(best_by_pos.get('WR', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('WR') else ""}
+  - Best QB: {best_by_pos.get('QB', [None])[0]} {f"(ranked #{int(best_by_pos.get('QB', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('QB') else ""}
+  - Best TE: {best_by_pos.get('TE', [None])[0]} {f"(ranked #{int(best_by_pos.get('TE', [None, {'adp': 999}])[1]['adp'])})" if best_by_pos.get('TE') else ""}
+
+Provide strategic advice for the user's pick based on your personality."""
+        else:
+            # Use default context
+            context = f"""You are an expert fantasy football advisor helping the user in round {round_num} of their draft.
 
 User's current roster:
 - RBs: {', '.join(user_rbs) if user_rbs else 'None'}
@@ -454,18 +593,25 @@ class CommissionerAgent:
 class MultiAgentMockDraft:
     """Orchestrates the multi-agent mock draft."""
     
-    def __init__(self, user_pick_position: int = 4):
-        # Initialize agents
+    def __init__(self, user_pick_position: int = 4, custom_prompts: Optional[Dict[int, str]] = None):
+        # Initialize agents with custom prompts if provided
+        self.custom_prompts = custom_prompts or {}
+        
+        # Debug: Log custom prompts
+        print(f"DEBUG: MultiAgentMockDraft received custom_prompts: {len(self.custom_prompts)} teams")
+        for team_num, prompt in self.custom_prompts.items():
+            print(f"DEBUG: Team {team_num} custom prompt: {prompt[:50]}..." if prompt else f"DEBUG: Team {team_num} has no custom prompt")
+        
         self.agents = {
-            1: ZeroRBAgent("Team 1"),
-            2: BPAAgent("Team 2"), 
-            3: RobustRBAgent("Team 3"),
-            5: UpsideAgent("Team 5")
+            1: ZeroRBAgent("Team 1", self.custom_prompts.get(1)),
+            2: BPAAgent("Team 2", self.custom_prompts.get(2)), 
+            3: RobustRBAgent("Team 3", self.custom_prompts.get(3)),
+            5: UpsideAgent("Team 5", self.custom_prompts.get(5))
         }
         
         # Add Team 6 as BPA if it's not the user position
         if 6 != user_pick_position:
-            self.agents[6] = BPAAgent("Team 6")
+            self.agents[6] = BPAAgent("Team 6", self.custom_prompts.get(6))
             self.agents[6].person_emoji = "👨‍🏫"  # Professor, methodical
         
         self.user_position = user_pick_position

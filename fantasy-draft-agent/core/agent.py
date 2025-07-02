@@ -12,12 +12,23 @@ from .data import TOP_PLAYERS, get_player_info, get_best_available, get_players_
 # Load environment variables from .env file
 load_dotenv()
 
+# Check if API key is available
+if not os.getenv("OPENAI_API_KEY"):
+    print("WARNING: OPENAI_API_KEY not found in environment")
+    # Try to get it from HF Spaces secrets
+    import os
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if api_key:
+        os.environ["OPENAI_API_KEY"] = api_key
+        print("Successfully loaded API key from environment")
+
 
 class FantasyDraftAgent:
-    def __init__(self, framework: str = "tinyagent", model_id: str = "gpt-4o-mini"):
+    def __init__(self, framework: str = "tinyagent", model_id: str = "gpt-4o-mini", custom_instructions: Optional[str] = None):
         """Initialize the Fantasy Draft Agent."""
         self.framework = framework
         self.model_id = model_id
+        self.custom_instructions = custom_instructions
         
         # Draft state management
         self.draft_state = {
@@ -33,9 +44,14 @@ class FantasyDraftAgent:
         }
         
         # Initialize the agent with tools
-        self.agent = AnyAgent.create(
-            framework,
-            AgentConfig(
+        try:
+            # Get API key
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY not found in environment")
+            
+            # Create agent configuration with explicit API key
+            agent_config = AgentConfig(
                 model_id=model_id,
                 instructions=self._get_instructions(),
                 tools=[
@@ -44,12 +60,40 @@ class FantasyDraftAgent:
                     self._analyze_position_scarcity,
                     self._get_team_stack_options,
                 ],
-                model_args={"temperature": 0.7}
+                model_args={
+                    "temperature": 0.7,
+                    "api_key": api_key  # Explicitly pass API key
+                }
             )
-        )
+            
+            self.agent = AnyAgent.create(framework, agent_config)
+            
+        except Exception as e:
+            print(f"Error creating agent: {e}")
+            # Try without tools as a fallback
+            try:
+                api_key = os.getenv("OPENAI_API_KEY", "")
+                self.agent = AnyAgent.create(
+                    framework,
+                    AgentConfig(
+                        model_id=model_id,
+                        instructions=self._get_instructions(),
+                        model_args={
+                            "temperature": 0.7,
+                            "api_key": api_key
+                        }
+                    )
+                )
+            except Exception as e2:
+                print(f"Fallback also failed: {e2}")
+                raise e2
     
     def _get_instructions(self) -> str:
         """Get the agent's system instructions."""
+        # Use custom instructions if provided, otherwise use default
+        if self.custom_instructions:
+            return self.custom_instructions
+            
         return """You are an expert fantasy football draft assistant with deep knowledge of:
         - Player values, tiers, and ADP (Average Draft Position)
         - Draft strategy (Zero RB, Hero RB, Robust RB, etc.)
@@ -149,27 +193,33 @@ class FantasyDraftAgent:
     
     def run(self, prompt: str, maintain_context: bool = True) -> str:
         """Run the agent with a prompt, maintaining conversation context."""
-        # Build context from previous conversation if needed
-        if maintain_context and self.draft_state["conversation_history"]:
-            context = self._build_conversation_context()
-            full_prompt = f"{context}\n\nCurrent message: {prompt}"
-        else:
-            full_prompt = prompt
-        
-        # Add current draft state to prompt
-        draft_context = self._build_draft_context()
-        full_prompt = f"{draft_context}\n\n{full_prompt}"
-        
-        # Run the agent
-        trace = self.agent.run(full_prompt)
-        
-        # Store conversation turn
-        self.draft_state["conversation_history"].append({
-            "user": prompt,
-            "agent": trace.final_output
-        })
-        
-        return trace.final_output
+        try:
+            # Build context from previous conversation if needed
+            if maintain_context and self.draft_state["conversation_history"]:
+                context = self._build_conversation_context()
+                full_prompt = f"{context}\n\nCurrent message: {prompt}"
+            else:
+                full_prompt = prompt
+            
+            # Add current draft state to prompt
+            draft_context = self._build_draft_context()
+            full_prompt = f"{draft_context}\n\n{full_prompt}"
+            
+            # Run the agent
+            trace = self.agent.run(full_prompt)
+            
+            # Store conversation turn
+            self.draft_state["conversation_history"].append({
+                "user": prompt,
+                "agent": trace.final_output
+            })
+            
+            return trace.final_output
+        except Exception as e:
+            print(f"Error in agent.run(): {e}")
+            print(f"Prompt was: {prompt[:200]}...")
+            # Return a fallback response
+            return f"I encountered an error: {str(e)}. Please check your API key configuration."
     
     def _build_conversation_context(self) -> str:
         """Build context from conversation history."""

@@ -2,203 +2,143 @@
 
 ## Core Features
 
-### 🤖 Multi-Agent System
-- **6 AI Agents**: Each with distinct personality and strategy
-- **User Position**: Player drafts at position 4 with AI advisor
-- **3-Round Draft**: Snake draft format (1→6, 6→1, 1→6)
-- **Real-time Interaction**: Agents comment and react to picks
+### 1. Interactive Mock Draft Experience
+- **User Participation**: Play as Team 4 with 5 AI opponents
+- **Real-time Advisor**: Get strategic recommendations based on:
+  - Your current roster needs
+  - Available player values
+  - Other teams' strategies
+  - Position scarcity
 
-### 🎭 Agent Personalities
+### 2. Advanced Multi-Agent System
+- **6 Distinct Agents**: Each with unique strategies and personalities
+- **Multi-Turn Memory**: Agents remember all interactions
+- **Dynamic Comments**: Context-aware reactions to picks
+- **Natural Rivalries**: Zero RB vs Robust RB create engaging banter
 
-#### Team 1 - Zero RB (📘🤓)
-- **Strategy**: Avoids RBs early, loads up on elite WRs
-- **Personality**: Analytical, confident in contrarian approach
-- **Catchphrase**: "RBs get injured. I'll build around elite WRs."
+### 3. Visual Draft Experience
+- **Live Draft Board**: See all picks organized by team
+- **Round Progress**: Track current round and pick number
+- **Team Rosters**: Visual representation of each team's selections
+- **Available Players**: Searchable list with positions and teams
 
-#### Team 2 & 6 - Best Player Available (📗🧑‍💼/👨‍🏫)
-- **Strategy**: Pure value drafting, ignores positional needs
-- **Personality**: Disciplined, mocks others for reaching
-- **Catchphrase**: "Value is value. I don't reach for needs."
+### 4. Customizable Agents
+- **Personality Editor**: Modify each agent's trash-talk style
+- **Strategy Tuning**: Adjust how aggressive or conservative agents are
+- **Emoji Styles**: Each agent has their own emoji personality
+- **Memory References**: Agents callback to earlier interactions
 
-#### Team 3 - Robust RB (📙🧔)
-- **Strategy**: Prioritizes RBs in rounds 1-2
-- **Personality**: Traditional, old-school approach
-- **Catchphrase**: "RBs win championships. Period."
+## Technical Enhancements
 
-#### Team 5 - Upside Hunter (📓🤠)
-- **Strategy**: Seeks high-risk, high-reward players
-- **Personality**: Bold, mocks conservative picks
-- **Catchphrase**: "Safe picks are for losers!"
+### 1. Memory System
+- **Conversation History**: Full context maintained across turns
+- **Pick Tracking**: Agents know who picked whom and when
+- **Strategy Awareness**: Agents understand opponents' approaches
+- **Grudge Memory**: Agents remember who mocked their picks
 
-#### User's Advisor (📕🧙)
-- **Role**: Provides strategic advice to the user
-- **Features**: Analyzes board state, suggests best picks, explains reasoning
+### 2. Performance Optimizations
+- **Typing Effect**: Natural conversation flow with "..." indicators
+- **Async Processing**: Non-blocking UI during agent turns
+- **Efficient State Management**: Minimal re-renders
+- **Smart Comment Selection**: Rivals prioritized for reactions
 
-### 🎨 UI/UX Enhancements
+### 3. User Experience
+- **Keyboard Shortcuts**: Enter to submit picks
+- **Auto-scroll**: Keeps current action in view
+- **Responsive Design**: Works on various screen sizes
+- **Error Recovery**: Graceful handling of invalid picks
 
-#### Visual Design
-- **Agent Cards**: Color-coded with emojis for easy identification
-- **Message Formatting**: Speaker badges with recipient indicators
-- **Draft Board**: Visual grid showing all picks by round
-- **Dark Text Fix**: Ensures readability on all backgrounds
+## Configuration Options
 
-#### Interactive Elements
-- **Typing Animation**: "..." indicator for realistic feel
-- **Progressive Updates**: Draft unfolds in real-time
-- **Available Players**: Dropdown showing top 20 options
-- **User Input**: Clean interface for making picks
-
-### 💬 Communication Features
-
-#### Conversation System
-- **Directed Messages**: Clear sender → recipient format
-- **Commissioner Announcements**: Official draft updates
-- **Trash Talk**: Agents comment on rivals' picks
-- **Memory Indicators**: Shows when agents reference past events
-
-#### Comment Limiting
-- **Smart Throttling**: Max 2-3 comments per pick
-- **Rival Priority**: Rivals more likely to comment
-- **Natural Flow**: Prevents conversation overload
-
-### 🔧 Technical Features
-
-#### Dual Mode Operation
-1. **Basic Multiagent Mode**
-   - Single process execution
-   - Fast response times
-   - Perfect for development
-
-2. **A2A Mode (Agent-to-Agent)**
-   - Distributed architecture
-   - Each agent on HTTP server
-   - Production-ready setup
-
-#### Multi-User Support
-- **Session Isolation**: Each user gets separate instance
-- **Gradio State Management**: Proper state handling
-- **Dynamic Port Allocation**: No conflicts in A2A mode
-- **Concurrent Users**: Supports multiple simultaneous drafts
-
-### 📊 Draft Features
-
-#### Snake Draft Logic
-- **Round 1**: Picks 1→2→3→4→5→6
-- **Round 2**: Picks 6→5→4→3→2→1 (reverses)
-- **Round 3**: Picks 1→2→3→4→5→6
-
-#### Player Database
-- **50+ Players**: Real NFL players with positions
-- **Team Info**: Current NFL team assignments
-- **Positional Balance**: QBs, RBs, WRs, TEs
-- **Realistic Rankings**: Based on fantasy relevance
-
-#### Draft Intelligence
-- **Strategy Adherence**: Agents follow their strategies
-- **Contextual Decisions**: React to draft flow
-- **Position Scarcity**: Recognize run on positions
-- **Value Recognition**: Identify steals and reaches
-
-### 🚀 Performance Optimizations
-
-#### Configurable Delays
+### Timing Controls
 ```python
-TYPING_DELAY_SECONDS = 0.3      # "..." display time
-MESSAGE_DELAY_SECONDS = 0.1     # Between messages
-AGENT_START_DELAY = 0.5         # A2A startup spacing
+TYPING_DELAY_SECONDS = 0.5      # "..." display time
+MESSAGE_DELAY_SECONDS = 1.0     # Between messages
+MAX_COMMENTS_PER_PICK = 1       # Keeps draft moving
 ```
 
-#### Resource Management
-- **Async Operations**: Non-blocking agent communication
-- **Timeout Handling**: 30-second default with fallbacks
-- **Memory Efficiency**: Clean state management
-- **Port Cleanup**: Automatic resource release
+### Rivalry System
+```python
+RIVAL_PAIRS = {
+    1: 3,      # Zero RB vs Robust RB
+    3: 1,      # Mutual rivalry
+    5: [2, 6], # Upside vs BPA agents
+}
+```
 
-### 🔐 Reliability Features
+## Agent Strategies
 
-#### Error Handling
-- **Graceful Fallbacks**: A2A → simulation if needed
-- **Clear Error Messages**: User-friendly notifications
-- **Validation**: Player name and state checking
-- **Recovery**: Continues draft after errors
+### 1. Zero RB (Team 1)
+- Avoids RBs in early rounds
+- Prioritizes elite WRs
+- Mocks traditional RB-heavy approaches
+- Gets RB value in later rounds
 
-#### State Management
-- **Draft Persistence**: Maintains state across turns
-- **Conversation History**: Full context preservation
-- **Pick Validation**: Prevents duplicate selections
-- **Board Updates**: Real-time synchronization
+### 2. Best Player Available (Teams 2 & 6)
+- Pure value-based drafting
+- Ignores positional needs
+- Critical of "reaching" for positions
+- Cold, analytical approach
 
-## Recent Enhancements
+### 3. Robust RB (Team 3)
+- RBs in rounds 1-2 mandatory
+- Old-school philosophy
+- Hates modern passing game trends
+- Values "workhorse" backs
 
-### 🎨 Custom Agent Prompts (ENHANCED!)
-- **Customizable Personalities**: Edit personality and strategy for each agent
-- **Settings Buttons**: ⚙️ button on each agent card
-- **Live Editing**: Modify prompts before starting draft
-- **Prompt Persistence**: Custom prompts used throughout session
-- **Safe Customization**: Output format instructions are protected
-- **A2A Compatible**: Works with both Basic and A2A modes
+### 4. Upside Hunter (Team 5)
+- Seeks high-ceiling players
+- Willing to take risks
+- Mocks "safe" picks
+- Boom-or-bust mentality
 
-#### How to Use:
-1. Click ⚙️ Customize on any agent card
-2. Edit the personality and strategy in the text area
-3. Click 💾 Save to apply changes
-4. Start draft with customized agents
+## Unique Implementation Details
 
-#### Safety Features:
-- **Protected Output Format**: Critical JSON output instructions cannot be modified
-- **Automatic Prepending**: System always includes proper format instructions
-- **Clear Separation**: UI shows only editable personality/strategy parts
-- **Error Prevention**: Prevents users from breaking agent responses
+### 1. Dynamic Prompt Generation
+- Context-aware responses based on:
+  - Current round
+  - Previous picks
+  - Available players
+  - Recent conversations
 
-#### Example Customizations:
-- Make Team 1 obsessed with tight ends instead of WRs
-- Turn Team 3 into a modern analytics-based drafter
-- Create a peaceful Team 5 that never trash talks
-- Give agents specific player targets or avoid lists
-- Change personality traits while maintaining functionality
+### 2. Natural Language Processing
+- Agents avoid raw statistics in speech
+- Convert ADP numbers to natural phrases
+- Use strategy-appropriate vocabulary
+- Maintain consistent personality
 
-### Task ID Implementation
-- Simplified A2A conversation tracking
-- Removed redundant history management
-- Cleaner code architecture
-- Better framework integration
+### 3. Competitive Dynamics
+- Agents defend their strategies aggressively
+- No polite, generic responses
+- Real draft room atmosphere
+- Escalating rivalries as draft progresses
 
-### Text Readability Fix
-- Dark text on all backgrounds
-- Explicit color styling
-- Fixed message card contrast
-- Improved overall readability
+## Future Enhancement Ideas
 
-### Dynamic Port Allocation
-- Support for 100+ concurrent A2A sessions
-- Automatic port assignment (5000-9000)
-- Session-based isolation
-- Conflict prevention
+1. **Draft Analysis**
+   - Post-draft grades for each team
+   - Strategy effectiveness metrics
+   - Win probability projections
 
-### Enhanced Multi-User Support
-- Full session isolation
-- Gradio State implementation
-- Proper callback handling
-- Warning messages for A2A limitations
+2. **Extended Rounds**
+   - Support for full 15+ round drafts
+   - Bench strategy considerations
+   - Late-round sleeper picks
 
-## Usage Tips
+3. **Custom Scoring**
+   - PPR vs Standard scoring impacts
+   - Dynasty league considerations
+   - Keeper league strategies
 
-### For Best Experience
-1. Start with Basic Multiagent mode for speed
-2. Try A2A mode to see distributed architecture
-3. Watch for memory indicators showing context
-4. Pay attention to rival interactions
+4. **Historical Data**
+   - Previous season performance
+   - Injury history considerations
+   - Breakout candidate identification
 
-### Customization Options
-- Adjust delays in `constants.py`
-- Modify agent strategies in `agent.py`
-- Add players to `data.py`
-- Customize UI in `apps/app.py`
+## Tips for Best Experience
 
-## Future Possibilities
-- WebSocket real-time updates
-- Custom league settings
-- More agent personalities
-- Advanced statistics
-- Trade negotiations
-- Dynasty league support 
+1. **Starting Fresh**: Each draft is independent
+2. **Pick Timing**: Take your time, agents will wait
+3. **Name Matching**: Type player names as shown
+4. **Enjoy the Banter**: Let agents build rivalries
+5. **Experiment**: Try different strategies yourself 
