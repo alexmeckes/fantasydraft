@@ -73,9 +73,7 @@ fantasy-draft-agent/
 ├── data.py               # Static NFL player database
 ├── demo.py               # CLI demonstration
 ├── multiagent_draft.py   # Multi-agent mock draft implementation
-├── multiagent_scenarios.py # Agent communication scenarios
-├── scenarios.py          # Pre-crafted demo scenarios
-└── visualizer.py         # ASCII visualizations
+└── multiagent_scenarios.py # Agent communication scenarios
 ```
 
 ## Documentation
